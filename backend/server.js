@@ -202,9 +202,9 @@ app.post('/api/chat', async (req, res) => {
             console.log("   Ollama gagal, mencoba fallback LLM ke Hugging Face (Zephyr)...");
             try {
                 const HF_LLM_MODEL_ID_ZEPHYR = "HuggingFaceH4/zephyr-7b-beta";
-                const HF_LLM_API_URL_ZEPHYR = `https://api-inference.huggingface.co/models/${HF_LLM_MODEL_ID_ZEPHYR}`;
+                const HF_LLM_API_URL_ZEPHYR = "https://router.huggingface.co/hf-inference";
                 const zephyrFormattedPrompt = formatMessagesForZephyr(messages);
-                const hfZephyrPayload = { inputs: zephyrFormattedPrompt, parameters: { return_full_text: false, max_new_tokens: 350, temperature: 0.7, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
+                const hfZephyrPayload = { model: HF_LLM_MODEL_ID_ZEPHYR, inputs: zephyrFormattedPrompt, parameters: { return_full_text: false, max_new_tokens: 350, temperature: 0.7, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
                 console.log(`   Mengirim ke HF LLM (Zephyr) (Timeout: ${HF_ZEPHYR_TIMEOUT / 1000}s). Prompt (awal): "${zephyrFormattedPrompt.substring(0, 70)}..."`);
                 const zephyrOperation = fetch(HF_LLM_API_URL_ZEPHYR, { method: "POST", headers: { "Authorization": `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify(hfZephyrPayload) });
                 const hfZephyrResponse = await Promise.race([
@@ -225,9 +225,9 @@ app.post('/api/chat', async (req, res) => {
                 console.log("   Zephyr gagal, mencoba fallback LLM ke Hugging Face (Llama 3)...");
                 try {
                     const HF_LLM_MODEL_ID_LLAMA3 = "meta-llama/Llama-3-8B-Instruct";
-                    const HF_LLM_API_URL_LLAMA3 = `https://api-inference.huggingface.co/models/${HF_LLM_MODEL_ID_LLAMA3}`;
+                    const HF_LLM_API_URL_LLAMA3 = "https://router.huggingface.co/hf-inference";
                     const llama3FormattedInputs = formatMessagesForLlama3(messages);
-                    const hfLlama3Payload = { inputs: llama3FormattedInputs, parameters: { return_full_text: false, max_new_tokens: 450, temperature: 0.6, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
+                    const hfLlama3Payload = { model: HF_LLM_MODEL_ID_LLAMA3, inputs: llama3FormattedInputs, parameters: { return_full_text: false, max_new_tokens: 450, temperature: 0.6, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
                     console.log(`   Mengirim ke HF LLM (Llama 3) (Timeout: ${HF_LLAMA3_TIMEOUT / 1000}s). Prompt (awal): "${llama3FormattedInputs.substring(0, 70)}..."`);
                     const llama3Operation = fetch(HF_LLM_API_URL_LLAMA3, { method: "POST", headers: { "Authorization": `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify(hfLlama3Payload) });
                     const hfLlama3Response = await Promise.race([
