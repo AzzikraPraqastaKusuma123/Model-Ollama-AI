@@ -16,12 +16,7 @@ app.use((req, res, next) => {
 
 // --- KONFIGURASI CORS YANG DISEMPURNAKAN DAN DISEMPURNAKAN ---
 const corsOptions = {
-  origin: (origin, callback) => {
-    // Untuk debugging, izinkan semua origin.
-    // PERINGATAN: Untuk produksi, Anda HARUS membatasi ini ke domain frontend Anda yang sebenarnya.
-    console.log(`   CORS Middleware: Memeriksa origin: ${origin}`);
-    callback(null, true); // Izinkan semua untuk debugging saat ini
-  },
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   credentials: true,
