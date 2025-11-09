@@ -601,7 +601,7 @@ function App() {
 
             try {
                 // PERBAIKAN: Menggunakan import.meta.env untuk variabel environment di sisi klien (Vite)
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:2222/api/chat";
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
                 const response = await fetch(backendUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: finalMessagesForApi }), });
                 
                 if (!response.ok) {

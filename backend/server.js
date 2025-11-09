@@ -6,7 +6,7 @@ const cors = require('cors');
 const ollamaImport = require('ollama');
 
 const app = express();
-const port = process.env.PORT || 2222;
+const port = process.env.PORT || 3333;
 
 // Middleware untuk logging semua permintaan masuk
 app.use((req, res, next) => {
