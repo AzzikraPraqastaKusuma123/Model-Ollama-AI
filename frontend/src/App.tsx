@@ -294,11 +294,11 @@ function App() {
     
     // --- REFS FOR AUTO-SUBMIT ---
     const autoSubmitTimerRef = useRef<number | null>(null);
+    // Ref for auto-submit after silence
+    const autoSubmitSilenceTimerRef = useRef<number | null>(null);
+    const AUTO_SUBMIT_SILENCE_TIMEOUT_MS = 7 * 60 * 1000; // 7 minutes in milliseconds
     // Ref to hold the latest handleSubmit function to avoid stale closures in timers
     const handleSubmitRef = useRef<((e?: React.FormEvent) => Promise<void>) | null>(null);
-    // Ref for inactivity timer
-    const inactivityTimerRef = useRef<number | null>(null);
-    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -325,18 +325,19 @@ function App() {
         return audioContextRef.current;
     }, []);
 
-    const resetInactivityTimer = useCallback(() => {
-        if (inactivityTimerRef.current) {
-            clearTimeout(inactivityTimerRef.current);
+    const resetAutoSubmitSilenceTimer = useCallback(() => {
+        if (autoSubmitSilenceTimerRef.current) {
+            clearTimeout(autoSubmitSilenceTimerRef.current);
         }
-        inactivityTimerRef.current = window.setTimeout(() => {
-            setIsNovaResponding(false);
-            console.log("Nova deactivated due to 15 minutes of inactivity.");
-        }, INACTIVITY_TIMEOUT_MS);
-    }, [setIsNovaResponding, INACTIVITY_TIMEOUT_MS]);
+        autoSubmitSilenceTimerRef.current = window.setTimeout(() => {
+            if (isNovaResponding && input.trim() && handleSubmitRef.current) {
+                console.log("Auto-submitting due to 7 minutes of silence.");
+                handleSubmitRef.current();
+            }
+        }, AUTO_SUBMIT_SILENCE_TIMEOUT_MS);
+    }, [isNovaResponding, input, handleSubmitRef, AUTO_SUBMIT_SILENCE_TIMEOUT_MS]);
 
     const playSound = useCallback(async (dataOrText: string | any) => {
-        resetInactivityTimer(); // Reset inactivity timer on any sound playback
         const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
         if (!textToSpeak) return;
 
@@ -399,16 +400,6 @@ function App() {
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
     useEffect(() => { autoGrowTextarea(); }, [input, autoGrowTextarea]);
 
-    // Inactivity timer management
-    useEffect(() => {
-        resetInactivityTimer(); // Initialize or reset timer on component mount/activity
-        return () => {
-            if (inactivityTimerRef.current) {
-                clearTimeout(inactivityTimerRef.current);
-            }
-        };
-    }, [resetInactivityTimer, isNovaResponding]); // Reset timer when Nova state changes or any activity
-
     // --- LOG FETCHING ---
     const fetchLogs = useCallback(async () => {
         try {
@@ -437,7 +428,7 @@ function App() {
     // --- MODIFIED HANDLESUBMIT ---
     const handleSubmit = useCallback(async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        resetInactivityTimer(); // Reset inactivity timer on user submission
+        resetAutoSubmitSilenceTimer(); // Reset auto-submit timer on manual submission
 
         if (!isNovaResponding) {
             console.log("Nova is not active, AI will not respond to this input.");
@@ -539,20 +530,10 @@ function App() {
             setIsListening(false);
         };
         
-        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
-            console.error('Speech recognition error:', event.error, event.message);
-            let userMessage = `Error STT: ${event.error}.`;
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') userMessage = 'Akses mikrofon tidak diizinkan. Periksa izin browser Anda.';
-            else if (event.error === 'no-speech' && isListening) userMessage = "Tidak ada suara terdeteksi. Coba lagi.";
-            else if (event.error === 'audio-capture') userMessage = "Masalah dengan mikrofon. Pastikan terhubung.";
-            else if (event.error === 'network') userMessage = "Masalah jaringan dengan layanan STT.";
-            
-            if (userMessage !== `Error STT: ${event.error}.` || event.error === 'network') setError(userMessage);
-            setIsListening(false);
-        };
-        
         recognitionInstance.onresult = async (event: SpeechRecognitionEvent) => {
-            resetInactivityTimer(); // Reset inactivity timer on speech input
+            if (isNovaResponding) {
+                resetAutoSubmitSilenceTimer(); // Reset auto-submit timer on speech input if Nova is responding
+            }
             let interimTranscript = '';
             let finalTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -581,7 +562,7 @@ function App() {
                     const response = await fetch(`${backendUrl}/api/keyword-detect`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ transcript: finalTranscript }),
+                        body: JSON.stringify({ text: finalTranscript }),
                     });
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -591,6 +572,7 @@ function App() {
                         setIsNovaResponding(data.novaResponding);
                         if (data.novaResponding) {
                             console.log("Nova activated!");
+                            resetAutoSubmitSilenceTimer(); // Start auto-submit timer when Nova activates
                             // If Nova is activated by voice, and there's a pending input, submit it
                             if (finalTranscript.trim() !== "nova") { // Avoid submitting "nova" as a message
                                 if (handleSubmitRef.current) {
@@ -602,6 +584,10 @@ function App() {
                             }
                         } else {
                             console.log("Nova deactivated!");
+                            if (autoSubmitSilenceTimerRef.current) {
+                                clearTimeout(autoSubmitSilenceTimerRef.current);
+                                autoSubmitSilenceTimerRef.current = null;
+                            }
                         }
                     }
                 } catch (err) {
@@ -610,7 +596,7 @@ function App() {
                 }
             }
         };
-
+        
         recognitionRef.current = recognitionInstance;
 
         // Start recognition on mount
