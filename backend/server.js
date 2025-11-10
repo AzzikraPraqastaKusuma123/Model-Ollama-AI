@@ -46,6 +46,16 @@ if (!ollama || typeof ollama.chat !== 'function') {
 
 
 
+function createTimeoutPromise(ms, errorMessage = 'Operasi melebihi batas waktu') {
+    return new Promise((_, reject) => setTimeout(() => reject(new Error(errorMessage)), ms));
+}
+
+
+
+
+
+
+
 async function processTextInChunks(text, sourceLang, targetLang, maxChunkLength) {
     const translatedParts = [];
     let remainingText = text;
@@ -140,15 +150,13 @@ async function translateTextWithMyMemory(textToTranslate, sourceLang = 'en', tar
 app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
-    const ollamaModel = req.body.model || "llama3";
-     
-     
-      
+    const primaryModel = req.body.model || "llama3";
+    const fallbackModel = "gemma:2b";
+    const PRIMARY_TIMEOUT = 300000; // 5 menit
+    const FALLBACK_TIMEOUT = 60000; // 1 menit
 
     let rawReplyContent = "";
     let respondedBy = "";
-
-
     let primaryAIError = null;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -157,28 +165,67 @@ app.post('/api/chat', async (req, res) => {
 
     try {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
-        console.log(`   Mencoba model Ollama: ${ollamaModel}...`);
+        
+        console.log(`   Mencoba model utama: ${primaryModel} (Timeout: ${PRIMARY_TIMEOUT / 60000} menit)...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
-        const ollamaOperation = ollama.chat({ model: ollamaModel, messages: ollamaChatMessages, stream: false });
-        const ollamaResponse = await ollamaOperation;
-        if (ollamaResponse?.message?.content) {
-            rawReplyContent = ollamaResponse.message.content;
-            respondedBy = `Ollama (${ollamaModel})`;
-            console.log("   Respons teks dari Ollama:", rawReplyContent.substring(0, 70) + "...");
-        } else { throw new Error("Struktur respons tidak valid dari Ollama."); }
+        const primaryOperation = ollama.chat({ model: primaryModel, messages: ollamaChatMessages, stream: false });
+        
+        const primaryResponse = await Promise.race([
+            primaryOperation,
+            createTimeoutPromise(PRIMARY_TIMEOUT, `Model utama (${primaryModel}) timeout.`)
+        ]);
+
+        if (primaryResponse?.message?.content) {
+            rawReplyContent = primaryResponse.message.content;
+            respondedBy = `Ollama (${primaryModel})`;
+            console.log(`   Respons dari model utama (${primaryModel}):`, rawReplyContent.substring(0, 70) + "...");
+        } else {
+            throw new Error(`Struktur respons tidak valid dari ${primaryModel}.`);
+        }
+
     } catch (ollamaError) {
-        console.warn(`   Gagal dari Ollama (${ollamaModel}): ${ollamaError.message}`);
+        console.warn(`   Gagal dari model utama (${primaryModel}): ${ollamaError.message}`);
         primaryAIError = ollamaError;
+
+        // Fallback logic starts here
+        if (ollamaError.message.includes("timeout")) {
+            console.log(`   Model utama timeout, mencoba model cadangan: ${fallbackModel}...`);
+            try {
+                const fallbackChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
+                const fallbackOperation = ollama.chat({ model: fallbackModel, messages: fallbackChatMessages, stream: false });
+
+                const fallbackResponse = await Promise.race([
+                    fallbackOperation,
+                    createTimeoutPromise(FALLBACK_TIMEOUT, `Model cadangan (${fallbackModel}) juga timeout.`)
+                ]);
+
+                if (fallbackResponse?.message?.content) {
+                    rawReplyContent = fallbackResponse.message.content;
+                    respondedBy = `Ollama (${fallbackModel})`;
+                    primaryAIError = null; // Clear the primary error because fallback succeeded
+                    console.log(`   Respons dari model cadangan (${fallbackModel}):`, rawReplyContent.substring(0, 70) + "...");
+                } else {
+                    throw new Error(`Struktur respons tidak valid dari ${fallbackModel}.`);
+                }
+            } catch (fallbackError) {
+                console.error(`   Gagal juga dari model cadangan (${fallbackModel}): ${fallbackError.message}`);
+                // Keep the original primaryAIError
+            }
+        }
     }
 
     let textForProcessing = "";
-    if (rawReplyContent) { textForProcessing = rawReplyContent; }
-    else if (primaryAIError) { textForProcessing = `Maaf, terjadi masalah dengan AI: ${primaryAIError.message}`; if (respondedBy === "") respondedBy = `Sistem Error (Ollama: ${ollamaModel})`; }
-    else { textForProcessing = "Maaf, terjadi kesalahan internal."; if (respondedBy === "") respondedBy = "Sistem Error"; }
+    if (rawReplyContent) { 
+        textForProcessing = rawReplyContent; 
+    } else if (primaryAIError) { 
+        textForProcessing = `Maaf, terjadi masalah dengan AI: ${primaryAIError.message}`; 
+        if (respondedBy === "") respondedBy = `Sistem Error (Ollama)`;
+    } else { 
+        textForProcessing = "Maaf, terjadi kesalahan internal."; 
+        if (respondedBy === "") respondedBy = "Sistem Error"; 
+    }
 
     const finalReplyContent = await translateTextWithMyMemory(textForProcessing, 'en', 'id');
-
-
 
     let providerInfo = respondedBy;
     console.log(`   [${new Date().toISOString()}] Mengirim respons untuk /api/chat:`, { role: "assistant", content: finalReplyContent.substring(0,50)+'...', provider: providerInfo });
