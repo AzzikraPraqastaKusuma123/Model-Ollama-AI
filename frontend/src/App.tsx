@@ -115,6 +115,21 @@ const MicrophoneIcon = () => (
     </svg>
 );
 
+const LogIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path fillRule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM6.166 5.106a.75.75 0 0 1 0 1.06L5.106 7.232a.75.75 0 0 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM18.374 5.106a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 1 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM4.5 12a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1-.75-.75ZM17.25 12a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5h-.75a.75.75 0 0 1-.75-.75ZM12 18.75a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0v-.75a.75.75 0 0 1 .75-.75ZM5.106 18.374a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06ZM16.313 17.061a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+    </svg>
+);
+
+
+
+// Tipe untuk entri log backend
+type LogEntry = {
+    timestamp: string;
+    level: string;
+    message: string;
+};
+
 // Komponen VoiceWaveform (untuk STT)
 interface VoiceWaveformProps {
     analyserNode: AnalyserNode | null;
@@ -139,8 +154,9 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
     
     // Base colors - will be made dynamic
     const BAR_COLORS_BASE = ['#67E8F9', '#4FD1C5', '#A7F3D0', '#3B82F6', '#818CF8', '#A5B4FC'];
-    const CENTER_MAIN_COLOR_BASE = 'rgba(150, 230, 255, 0.9)';
-    const CENTER_GLOW_COLOR_BASE = 'rgba(150, 230, 255, 0.25)';
+    const PRIMARY_RGB = '56, 189, 248'; // RGB values for var(--primary) #38bdf8
+    const CENTER_MAIN_COLOR_BASE = `rgba(${PRIMARY_RGB}, 0.9)`;
+    const CENTER_GLOW_COLOR_BASE = `rgba(${PRIMARY_RGB}, 0.25)`;
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -192,8 +208,8 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
             
             context.save();
             context.shadowBlur = dynamicGlow;
-            context.shadowColor = `rgba(150, 230, 255, ${dynamicOrbOpacity * 0.5})`; // More dynamic glow color
-            context.fillStyle = `rgba(150, 230, 255, ${dynamicOrbOpacity})`; // More dynamic orb opacity
+            context.shadowColor = `rgba(${PRIMARY_RGB}, ${dynamicOrbOpacity * 0.5})`;
+            context.fillStyle = `rgba(${PRIMARY_RGB}, ${dynamicOrbOpacity})`;
             context.beginPath(); context.arc(centerX, centerY, orbR, 0, 2 * Math.PI); context.fill();
             context.restore();
             
@@ -262,6 +278,7 @@ function App() {
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isSpeakingTTSBrowser, setIsSpeakingTTSBrowser] = useState<boolean>(false);
     const [isPlayingTTSFromElement, setIsPlayingTTSFromElement] = useState<boolean>(false);
+    const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]); // New state for backend logs
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
@@ -367,6 +384,31 @@ function App() {
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
     useEffect(() => { autoGrowTextarea(); }, [input, autoGrowTextarea]);
 
+    // --- LOG FETCHING ---
+    const fetchLogs = useCallback(async () => {
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333";
+            const response = await fetch(`${backendUrl}/api/logs`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data: LogEntry[] = await response.json();
+            setBackendLogs(data);
+        } catch (err) {
+            console.error("Error fetching backend logs:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        let logInterval: number | undefined;
+        fetchLogs(); // Fetch immediately
+        logInterval = window.setInterval(fetchLogs, 3000); // Poll every 3 seconds
+        return () => {
+            if (logInterval) clearInterval(logInterval);
+        };
+    }, [fetchLogs]);
+
+
     // --- MODIFIED HANDLESUBMIT ---
     const handleSubmit = useCallback(async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -379,7 +421,7 @@ function App() {
         const trimmedInput = input.trim();
         if (trimmedInput && !isLoading) {
             if (isListening && recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch(e){}
+                try { recognitionRefRef.current.stop(); } catch(e){}
             }
 
             const newMessage: Message = { role: "user", content: trimmedInput, timestamp: getCurrentTimestamp() };
@@ -682,6 +724,33 @@ function App() {
                     </div>
                 </form>
             </main>
+            <div className={styles.logViewerContainer}>
+                    <div className={styles.logViewerHeader}>
+                        <h2>Log Backend</h2>
+                        <button 
+                            className={`${styles.iconButton} ${styles.closeLogButton}`}
+                            onClick={() => setShowLogs(false)}
+                            aria-label="Tutup Log Backend"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className={styles.logViewerContent}>
+                        {backendLogs.length === 0 ? (
+                            <p>Tidak ada log yang tersedia.</p>
+                        ) : (
+                            backendLogs.map((log, index) => (
+                                <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
+                                    <span className={styles.logTimestamp}>{log.timestamp}</span>
+                                    <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
+                                    <span className={styles.logMessage}>{log.message}</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+            </div>
         </div>
     );
 }

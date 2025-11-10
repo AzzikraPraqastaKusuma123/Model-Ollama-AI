@@ -8,6 +8,51 @@ const ollamaImport = require('ollama');
 const app = express();
 const port = process.env.PORT || 3333;
 
+const MAX_LOG_ENTRIES = 100;
+const logBuffer = [];
+
+// Store original console methods
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+// Custom logger to capture logs
+function customLogger(level, ...args) {
+    const timestamp = new Date().toISOString();
+    const message = args.map(arg => {
+        if (typeof arg === 'object' && arg !== null) {
+            try {
+                return JSON.stringify(arg);
+            } catch (e) {
+                return String(arg); // Fallback for circular structures
+            }
+        }
+        return String(arg);
+    }).join(' ');
+
+    const logEntry = { timestamp, level, message };
+    logBuffer.push(logEntry);
+
+    if (logBuffer.length > MAX_LOG_ENTRIES) {
+        logBuffer.shift(); // Remove oldest entry
+    }
+
+    // Call original console method
+    if (level === 'error') {
+        originalConsoleError.apply(console, args);
+    } else if (level === 'warn') {
+        originalConsoleWarn.apply(console, args);
+    } else {
+        originalConsoleLog.apply(console, args);
+    }
+}
+
+// Override console methods
+console.log = (...args) => customLogger('info', ...args);
+console.error = (...args) => customLogger('error', ...args);
+console.warn = (...args) => customLogger('warn', ...args);
+
+
 // Middleware untuk logging semua permintaan masuk
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] Menerima permintaan: ${req.method} ${req.url} dari Origin: ${req.headers.origin}`);

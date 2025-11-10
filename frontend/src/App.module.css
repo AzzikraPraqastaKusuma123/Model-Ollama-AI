@@ -5,8 +5,9 @@
 
 /* Main App Layout */
 .appContainer {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 250px 1fr; /* Log viewer 250px, main content takes rest */
+  grid-template-rows: auto 1fr auto; /* Header, main content, input form */
   height: 100vh;
   width: 100vw;
   background-color: var(--background);
@@ -19,13 +20,12 @@
   border-bottom: 1px solid var(--border);
   background-color: var(--background);
   text-align: center;
-  position: sticky; /* Reverted to sticky */
-  top: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 1 / 2;
 }
 
 .appHeader h1 {
@@ -42,9 +42,10 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
+  max-width: 800px; /* Keep max-width for content within the column */
+  margin: 0 auto; /* Center content within its column */
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 2 / 3;
 }
 
 .messagesListContainer {
@@ -58,6 +59,8 @@
   padding: 1rem;
   border-top: 1px solid var(--border);
   background-color: var(--background);
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 3 / 4;
 }
 
 .inputFormInnerWrapper {
@@ -131,17 +134,17 @@
 }
 
 .micButtonIdle:hover:not([disabled]) {
-  background-color: #475569; /* slate-600 */
+  background-color: var(--muted-foreground); /* Using a darker muted color */
 }
 
 .micButtonListening {
   composes: iconButton;
-  background-color: #ef4444; /* red-500 */
-  color: white;
+  background-color: var(--primary); /* Using primary color for active state */
+  color: var(--primary-foreground);
 }
 
 .micButtonListening:hover:not([disabled]) {
-  background-color: #dc2626; /* red-600 */
+  background-color: var(--accent); /* Using accent color for hover */
 }
 
 .sendButton {
@@ -194,9 +197,9 @@
 /* Error Message */
 .errorMessageContainer {
   padding: 1rem;
-  background-color: #450a0a; /* red-950 */
-  color: #fecaca; /* red-200 */
-  border-top: 1px solid #7f1d1d; /* red-800 */
+  background-color: var(--card); /* Using card background */
+  color: var(--primary); /* Using primary color for error text */
+  border-top: 1px solid var(--border);
   text-align: center;
   font-weight: 500;
 }
@@ -210,9 +213,6 @@
   padding: 1.5rem 1rem; /* Increased padding */
   background-color: var(--background);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 60px; /* Adjust based on header height */
-  z-index: 9;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   gap: 0.75rem; /* Increased space between waveform and text */
   min-height: 180px; /* Ensure enough height for the circular waveform */
@@ -245,4 +245,145 @@
   0% { opacity: 1; }
   50% { opacity: 0.7; }
   100% { opacity: 1; }
+}
+
+/* Log Viewer Styles */
+.logButton {
+  composes: iconButton;
+  background-color: var(--muted);
+  color: var(--foreground);
+  position: absolute; /* Position relative to header */
+  right: 1.5rem; /* Adjust as needed */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px; /* Smaller button */
+  height: 40px;
+}
+
+.logButton:hover:not([disabled]) {
+  background-color: #475569; /* slate-600 */
+}
+
+.logButton svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.logViewerContainer {
+  grid-column: 1 / 2; /* Place in the first column */
+  grid-row: 1 / -1; /* Span all rows */
+  background-color: var(--card); /* Even darker content area */
+  border-right: 1px solid var(--border); /* Add a border to separate it from main content */
+  z-index: 1; /* Lower z-index as it's not an overlay anymore */
+  display: flex;
+  flex-direction: column;
+  color: var(--foreground); /* Light grey text */
+  font-family: 'Fira Code', 'Consolas', 'monospace'; /* Monospace font for logs */
+  font-size: 0.85rem;
+  overflow-y: auto; /* Ensure logs are scrollable within its container */
+}
+
+.logViewerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background-color: var(--background); /* Darker header */
+  border-bottom: 1px solid var(--border);
+}
+
+.logViewerHeader h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--foreground);
+}
+
+.closeLogButton {
+  display: none; /* This button is no longer needed as the log viewer is always open */
+}
+
+.closeLogButton:hover {
+  background-color: #555;
+}
+
+.logViewerContent {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1rem; /* Added padding */
+  background-color: var(--card); /* Even darker content area */
+}
+
+.logEntry {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted var(--muted); /* Using muted color for dotted border */
+}
+
+.logEntry:last-child {
+  border-bottom: none;
+}
+
+.logTimestamp {
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.logLevel {
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+/* Log Level Colors */
+.info .logLevel { color: var(--primary); } /* Cyan */
+.warn .logLevel { color: var(--accent); } /* Yellow */
+.error .logLevel { color: var(--primary-foreground); } /* Red */
+.info .logMessage { color: var(--foreground); } /* White */
+.warn .logMessage { color: var(--muted-foreground); } /* Yellow */
+.error .logMessage { color: var(--primary); } /* Red */
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .appContainer {
+    grid-template-columns: 1fr; /* Single column layout */
+    grid-template-rows: auto 1fr auto auto; /* Header, main content, input, then logs */
+    flex-direction: column; /* Ensure flex behavior for stacking */
+  }
+
+  .appHeader,
+  .mainContent,
+  .messageInputForm,
+  .logViewerContainer {
+    grid-column: 1 / -1; /* Span full width */
+    width: 100%; /* Take full width */
+    margin: 0; /* Remove centering margins */
+  }
+
+  .appHeader {
+    grid-row: 1 / 2;
+  }
+
+  .mainContent {
+    grid-row: 2 / 3;
+  }
+
+  .messageInputForm {
+    grid-row: 3 / 4;
+  }
+
+  .logViewerContainer {
+    grid-row: 4 / 5; /* Place logs at the bottom */
+    height: auto; /* Allow height to be content-driven */
+    border-right: none; /* Remove right border */
+    border-top: 1px solid var(--border); /* Add top border */
+  }
+
+  .logViewerHeader {
+    padding: 0.75rem 1rem; /* Slightly smaller padding */
+  }
+
+  .logViewerHeader h2 {
+    font-size: 1rem; /* Smaller font size */
+  }
 }
