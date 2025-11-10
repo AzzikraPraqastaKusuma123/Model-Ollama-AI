@@ -119,11 +119,12 @@ const MicrophoneIcon = () => (
 interface VoiceWaveformProps {
     analyserNode: AnalyserNode | null;
     isListening: boolean;
+    isSpeaking: boolean; // New prop for TTS activity
     width?: number;
     height?: number;
 }
 const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
-    analyserNode, isListening, width = 280, height = 120,
+    analyserNode, isListening, isSpeaking, width = 280, height = 120,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationFrameIdRef = useRef<number | null>(null);
@@ -135,41 +136,64 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
     const RING_RADIUS = width < baseWidthForScaling ? (height * 0.25) : (height * 0.35);
     const MAX_BAR_LENGTH = width < baseWidthForScaling ? (height * 0.3) : (height * 0.4);
     const BAR_WIDTH = Math.max(1.5, Math.min(3.5, width * 0.02));
-    const BAR_COLORS = ['#67E8F9', '#4FD1C5', '#A7F3D0', '#3B82F6', '#818CF8', '#A5B4FC'];
-    const CENTER_MAIN_COLOR = 'rgba(150, 230, 255, 0.9)';
-    const CENTER_GLOW_COLOR = 'rgba(150, 230, 255, 0.25)';
+    
+    // Base colors - will be made dynamic
+    const BAR_COLORS_BASE = ['#67E8F9', '#4FD1C5', '#A7F3D0', '#3B82F6', '#818CF8', '#A5B4FC'];
+    const CENTER_MAIN_COLOR_BASE = 'rgba(150, 230, 255, 0.9)';
+    const CENTER_GLOW_COLOR_BASE = 'rgba(150, 230, 255, 0.25)';
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!isListening || !analyserNode || !canvas) {
-            if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
-            if (canvas) { const ctx = canvas.getContext('2d'); ctx?.clearRect(0, 0, canvas.width, canvas.height); }
-            return;
-        }
+        if (!canvas) return;
         const context = canvas.getContext('2d'); if (!context) return;
+
+        // Set higher resolution for canvas for better rendering
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        context.scale(dpr, dpr);
         
-        analyserNode.fftSize = 256; 
-        analyserNode.smoothingTimeConstant = 0.75; 
-        const bufferLength = analyserNode.frequencyBinCount;
+        const bufferLength = analyserNode?.frequencyBinCount || 128; // Default if no analyser
         const dataArray = new Uint8Array(bufferLength);
+
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
 
         const draw = () => {
             animationFrameIdRef.current = requestAnimationFrame(draw);
-            analyserNode.getByteFrequencyData(dataArray);
             context.clearRect(0, 0, canvas.width, canvas.height);
             
-            let avgVol = 0;
-            for(let k=0; k < bufferLength; k++) avgVol += dataArray[k];
-            avgVol = (avgVol / bufferLength) / 255; 
-            avgVol = Math.min(avgVol * 2.5, 1); 
+            let currentAvgVol = 0;
+            if (isListening && analyserNode) {
+                analyserNode.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let k=0; k < bufferLength; k++) sum += dataArray[k];
+                currentAvgVol = (sum / bufferLength) / 255; 
+                currentAvgVol = Math.min(currentAvgVol * 2.5, 1); 
+            } else if (isSpeaking) {
+                // Simulate volume for TTS when no analyserNode is available
+                const time = Date.now() * 0.003; // Slower time for overall pulse
+                const fastTime = Date.now() * 0.01; // Faster time for subtle fluctuations
+                currentAvgVol = 0.4 + Math.sin(time) * 0.2 + Math.sin(fastTime * 1.5) * 0.1;
+                currentAvgVol = Math.max(0.1, Math.min(0.8, currentAvgVol));
+            }
 
-            const orbR = CENTER_ORB_MIN_RADIUS + (CENTER_ORB_MAX_RADIUS - CENTER_ORB_MIN_RADIUS) * avgVol;
+            if (!isListening && !isSpeaking) {
+                // Clear canvas and stop animation if neither is active
+                if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            // Dynamic Glow and Orb
+            const dynamicGlow = (width < baseWidthForScaling ? 18 : 35) * currentAvgVol * 1.5;
+            const dynamicOrbOpacity = 0.6 + currentAvgVol * 0.4;
+            const orbR = CENTER_ORB_MIN_RADIUS + (CENTER_ORB_MAX_RADIUS - CENTER_ORB_MIN_RADIUS) * currentAvgVol;
+            
             context.save();
-            context.shadowBlur = width < baseWidthForScaling ? 18 : 35;
-            context.shadowColor = CENTER_GLOW_COLOR;
-            context.fillStyle = CENTER_MAIN_COLOR;
+            context.shadowBlur = dynamicGlow;
+            context.shadowColor = `rgba(150, 230, 255, ${dynamicOrbOpacity * 0.5})`; // More dynamic glow color
+            context.fillStyle = `rgba(150, 230, 255, ${dynamicOrbOpacity})`; // More dynamic orb opacity
             context.beginPath(); context.arc(centerX, centerY, orbR, 0, 2 * Math.PI); context.fill();
             context.restore();
             
@@ -187,10 +211,9 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
                 }
                 
                 const normalizedPos = halfNumBars > 0 ? (barPosIndex % halfNumBars) / halfNumBars : 0;
-                const dataIdx = Math.min(bufferLength - 1, Math.floor(Math.pow(normalizedPos, 0.75) * (bufferLength * 0.85)));
-
-                const barVal = dataArray[dataIdx] / 255.0;
-                const barLenFactor = 0.4 + avgVol * 0.6; 
+                const barVal = isListening && analyserNode ? (dataArray[Math.min(bufferLength - 1, Math.floor(Math.pow(normalizedPos, 0.75) * (bufferLength * 0.85)))] / 255.0) : (isSpeaking ? (0.4 + Math.sin(Date.now() * 0.01 + i * 0.1) * 0.3) : 0);
+                
+                const barLenFactor = 0.4 + currentAvgVol * 0.6; 
                 const barLen = (BAR_WIDTH / 2) + barVal * MAX_BAR_LENGTH * barLenFactor;
                 
                 if (barLen <= (BAR_WIDTH / 2)) continue;
@@ -200,8 +223,14 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
                 const eX = centerX + (RING_RADIUS + barLen) * Math.cos(angle);
                 const eY = centerY + (RING_RADIUS + barLen) * Math.sin(angle);
                 
-                context.strokeStyle = BAR_COLORS[i % BAR_COLORS.length];
-                context.globalAlpha = 0.6 + barVal * 0.4; 
+                // Dynamic bar color based on volume and time
+                const colorIndex = Math.floor((i / NUM_BARS) * BAR_COLORS_BASE.length);
+                const baseColor = BAR_COLORS_BASE[colorIndex];
+                const r = parseInt(baseColor.slice(1, 3), 16);
+                const g = parseInt(baseColor.slice(3, 5), 16);
+                const b = parseInt(baseColor.slice(5, 7), 16);
+                context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.6 + barVal * 0.4})`; // Dynamic opacity
+                
                 context.beginPath(); context.moveTo(sX, sY); context.lineTo(eX, eY); context.stroke();
             }
             context.globalAlpha = 1.0;
@@ -211,122 +240,11 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
             if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
             if (canvasRef.current) { const ctx = canvasRef.current.getContext('2d'); ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }
         };
-    }, [isListening, analyserNode, width, height, NUM_BARS, CENTER_ORB_MIN_RADIUS, CENTER_ORB_MAX_RADIUS, RING_RADIUS, MAX_BAR_LENGTH, BAR_WIDTH, BAR_COLORS, CENTER_MAIN_COLOR, CENTER_GLOW_COLOR, baseWidthForScaling]);
+    }, [isListening, isSpeaking, analyserNode, width, height, NUM_BARS, CENTER_ORB_MIN_RADIUS, CENTER_ORB_MAX_RADIUS, RING_RADIUS, MAX_BAR_LENGTH, BAR_WIDTH, BAR_COLORS_BASE, CENTER_MAIN_COLOR_BASE, CENTER_GLOW_COLOR_BASE, baseWidthForScaling]);
     return <canvas ref={canvasRef} width={width} height={height} className={styles.voiceWaveformCanvasRadial} />;
 };
 
-// Komponen RadialPulseWaveform (untuk TTS di header)
-interface RadialPulseWaveformProps {
-    isActive: boolean;
-    width?: number;
-    height?: number;
-    colorScheme?: 'vibrant' | 'subtle';
-}
-const RadialPulseWaveform: React.FC<RadialPulseWaveformProps> = ({
-    isActive, width = 100, height = 30, colorScheme = 'vibrant'
-}) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const animationFrameIdRef = useRef<number | null>(null);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const analyserNodeRef = useRef<AnalyserNode | null>(null);
-    const dataArrayRef = useRef<Uint8Array | null>(null);
 
-    const BAR_COUNT = 20;
-    const BAR_SPACING = 2;
-    const BAR_WIDTH = 2;
-
-    const getColors = (scheme: string) => {
-        if (scheme === 'subtle') {
-            return {
-                base: 'rgba(100, 100, 100, 0.3)',
-                active: 'rgba(150, 150, 150, 0.6)',
-            };
-        }
-        return {
-            base: 'rgba(74, 222, 128, 0.4)', // emerald-400
-            active: 'rgba(52, 211, 153, 0.8)', // emerald-500
-        };
-    };
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const context = canvas.getContext('2d');
-        if (!context) return;
-
-        const colors = getColors(colorScheme);
-
-        const draw = () => {
-            animationFrameIdRef.current = requestAnimationFrame(draw);
-            context.clearRect(0, 0, width, height);
-
-            if (isActive && analyserNodeRef.current && dataArrayRef.current) {
-                analyserNodeRef.current.getByteFrequencyData(dataArrayRef.current);
-                const dataArray = dataArrayRef.current;
-                const bufferLength = analyserNodeRef.current.frequencyBinCount;
-
-                let sum = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    sum += dataArray[i];
-                }
-                const average = sum / bufferLength;
-
-                const maxBarHeight = height * 0.8;
-                const minBarHeight = height * 0.1;
-
-                for (let i = 0; i < BAR_COUNT; i++) {
-                    const x = i * (BAR_WIDTH + BAR_SPACING);
-                    const normalizedIndex = Math.floor((i / BAR_COUNT) * bufferLength);
-                    const barHeight = Math.max(minBarHeight, (dataArray[normalizedIndex] / 255) * maxBarHeight);
-                    const y = (height - barHeight) / 2;
-
-                    context.fillStyle = colors.active;
-                    context.fillRect(x, y, BAR_WIDTH, barHeight);
-                }
-            } else {
-                // Draw static bars when inactive or no audio data
-                const staticBarHeight = height * 0.2;
-                const staticY = (height - staticBarHeight) / 2;
-                for (let i = 0; i < BAR_COUNT; i++) {
-                    const x = i * (BAR_WIDTH + BAR_SPACING);
-                    context.fillStyle = colors.base;
-                    context.fillRect(x, staticY, BAR_WIDTH, staticBarHeight);
-                }
-            }
-        };
-
-        draw();
-
-        return () => {
-            if (animationFrameIdRef.current) {
-                cancelAnimationFrame(animationFrameIdRef.current);
-            }
-        };
-    }, [isActive, width, height, colorScheme]);
-
-    // Initialize AudioContext and AnalyserNode if not already done
-    useEffect(() => {
-        if (isActive && !audioContextRef.current) {
-            try {
-                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-                analyserNodeRef.current = audioContextRef.current.createAnalyser();
-                analyserNodeRef.current.fftSize = 256;
-                dataArrayRef.current = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
-
-                // Connect to a dummy source or global audio output if needed for visualization
-                // For TTS, this would typically connect to the output of the SpeechSynthesisUtterance
-                // or an HTMLAudioElement playing the TTS audio.
-                // For now, it will just show static bars if no audio is actively connected.
-            } catch (e) {
-                console.error("Failed to initialize AudioContext for RadialPulseWaveform:", e);
-            }
-        }
-    }, [isActive]);
-
-
-    return <canvas ref={canvasRef} width={width} height={height} />;
-};
 
 
 const getCurrentTimestamp = () => {
@@ -419,14 +337,13 @@ function App() {
 
         window.speechSynthesis.speak(utterance);
 
-        // Connect AnalyserNode for TTS waveform visualization
-        const audioContext = await ensureAudioContext();
-        if (audioContext && !ttsAudioElementSourceRef.current) {
-            // This part is tricky with window.speechSynthesis as it doesn't expose an audio source node directly.
-            // The RadialPulseWaveform for TTS in the header will show static bars or react to other audio.
-            // For actual TTS visualization, a different approach (e.g., using a Web Audio API based TTS library) is needed.
-            // For now, we'll just rely on the isActive prop to show some animation.
-        }
+        // --- TTS AnalyserNode Connection Attempt ---
+        // This is a complex part because window.speechSynthesis does not expose its audio stream directly.
+        // The RadialPulseWaveform will animate based on the 'isActive' prop in a simplified way.
+        // For a true audio-driven visualization of speechSynthesis, a MediaStreamDestinationNode
+        // would be needed to capture the output, but its support varies and it's less direct.        
+        // So, RadialPulseWaveform will simply animate when isActive is true.
+        // It's not truly 'following the volume' of the speechSynthesis output itself without advanced workarounds.
 
     }, [ensureAudioContext]);
 
@@ -685,14 +602,18 @@ function App() {
             </header>
 
             <main className={styles.mainContent}>
-                {isSpeakingTTSBrowser && (
-                    <div className={styles.ttsWaveformDisplayContainer}>
-                        <RadialPulseWaveform 
-                            isActive={isSpeakingTTSBrowser} 
-                            width={200}     
-                            height={60}     
-                            colorScheme="vibrant" 
+                {(isListening || isSpeakingTTSBrowser) && (
+                    <div className={styles.unifiedWaveformDisplayContainer}>
+                        <VoiceWaveform 
+                            analyserNode={sttAnalyserNodeRef.current} 
+                            isListening={isListening} 
+                            isSpeaking={isSpeakingTTSBrowser} // Pass isSpeaking prop
+                            width={240}     
+                            height={120}     
                         />
+                        <p className={styles.waveformStatusText}>
+                            {isListening ? "Mendengarkan..." : "AI Berbicara..."}
+                        </p>
                     </div>
                 )}
                 <div className={styles.messagesListContainer}>
@@ -719,18 +640,6 @@ function App() {
                     )}
                     <div ref={messagesEndRef} style={{ height: '1px' }}/>
                 </div>
-
-                {isListening && !anyTTSSpeaking && (
-                    <div className={styles.waveformContainerRadial}>
-                        <VoiceWaveform 
-                            analyserNode={sttAnalyserNodeRef.current} 
-                            isListening={isListening} 
-                            width={240} 
-                            height={120}
-                        />
-                        <p className={styles.listeningText}>Mendengarkan...</p>
-                    </div>
-                )}
 
                 {error && !isLoading && (
                        <div className={styles.errorMessageContainer}>

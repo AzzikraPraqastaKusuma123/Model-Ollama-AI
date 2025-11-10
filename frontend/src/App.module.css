@@ -202,39 +202,25 @@
 }
 
 /* Waveform & Other styles */
-.ttsWaveformDisplayContainer {
+.unifiedWaveformDisplayContainer {
   display: flex;
+  flex-direction: column; /* Stack waveform and text */
   justify-content: center;
   align-items: center;
-  padding: 0.5rem 1rem;
+  padding: 1.5rem 1rem; /* Increased padding */
   background-color: var(--background);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 60px; /* Adjust based on header height */
   z-index: 9;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  gap: 0.75rem; /* Increased space between waveform and text */
+  min-height: 180px; /* Ensure enough height for the circular waveform */
 }
 
-.waveformContainerRadial {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 1.5rem 0; /* Increased padding */
-  margin: 0 auto 1.5rem auto; /* Centered with bottom margin */
-  width: 90%;
-  max-width: 360px; /* Slightly wider */
-  background-color: var(--card);
-  border-radius: 1.5rem; /* More rounded */
-  border: 1px solid var(--border);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2); /* Stronger shadow */
-  animation: fadeInScale 0.3s ease-out; /* Simple entrance animation */
-}
-
-.listeningText {
+.waveformStatusText {
   color: var(--primary); /* Use primary color for emphasis */
   font-size: 1rem; /* Slightly larger */
-  margin-top: 1rem; /* More space */
   font-weight: 600; /* Bolder */
   animation: pulseText 1.5s infinite ease-in-out; /* Pulsing animation */
 }

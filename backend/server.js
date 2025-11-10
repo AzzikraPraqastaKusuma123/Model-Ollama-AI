@@ -235,22 +235,41 @@ app.post('/api/chat', async (req, res) => {
         });
 
         // Mulai kedua operasi secara bersamaan
-        const geminiOperation = callGeminiAPI(messages, GEMINI_API_KEY); // Panggil Gemini
-        const speedOperation = ollama.chat({ model: speedModel, messages: ollamaChatMessages, stream: false });
+        const geminiPromise = callGeminiAPI(messages, GEMINI_API_KEY); // Panggil Gemini
+        const ollamaPromise = ollama.chat({ model: speedModel, messages: ollamaChatMessages, stream: false });
 
-        // "Lombakan" keduanya!
-        const winner = await Promise.race([geminiOperation, speedOperation]);
+        // Gunakan Promise.allSettled untuk menunggu kedua promise selesai
+        const results = await Promise.allSettled([geminiPromise, ollamaPromise]);
 
-        if (winner?.message?.content) {
-            rawReplyContent = winner.message.content;
-            respondedBy = `Ollama (${winner.model})`; // winner.model will be 'Gemini-2.0-Flash' or 'gemma:2b'
-            console.log(`   Pemenang balapan adalah ${winner.model}:`, rawReplyContent.substring(0, 70) + "...");
-        } else {
-            throw new Error(`Struktur respons tidak valid dari pemenang balapan.`);
+        let geminiResult = results[0];
+        let ollamaResult = results[1];
+
+        // Prioritaskan Gemini jika berhasil
+        if (geminiResult.status === 'fulfilled' && geminiResult.value?.message?.content) {
+            rawReplyContent = geminiResult.value.message.content;
+            respondedBy = `Gemini (${geminiResult.value.model})`;
+            console.log(`   Pemenang balapan adalah Gemini (${geminiResult.value.model}):`, rawReplyContent.substring(0, 70) + "...");
+        } 
+        // Fallback ke Ollama jika Gemini gagal tapi Ollama berhasil
+        else if (ollamaResult.status === 'fulfilled' && ollamaResult.value?.message?.content) {
+            rawReplyContent = ollamaResult.value.message.content;
+            respondedBy = `Ollama (${speedModel})`;
+            console.log(`   Pemenang balapan adalah Ollama (${speedModel}):`, rawReplyContent.substring(0, 70) + "...");
+        } 
+        // Jika keduanya gagal
+        else {
+            let errorMessage = "Terjadi error pada kedua model.";
+            if (geminiResult.status === 'rejected') {
+                errorMessage += ` Gemini error: ${geminiResult.reason.message}`;
+            }
+            if (ollamaResult.status === 'rejected') {
+                errorMessage += ` Ollama error: ${ollamaResult.reason.message}`;
+            }
+            throw new Error(errorMessage);
         }
 
     } catch (error) {
-        console.error(`   Terjadi error pada kedua model: ${error.message}`);
+        console.error(`   Terjadi error saat balapan model: ${error.message}`);
         primaryAIError = error;
     }
 
