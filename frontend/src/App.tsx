@@ -353,6 +353,36 @@ function App() {
         window.speechSynthesis.speak(utterance);
     }, []);
 
+    const playDeactivationSound = useCallback(async () => {
+        try {
+            const audioContext = await ensureAudioContext();
+            if (!audioContext) return;
+
+            const playBeep = (freq: number, startTime: number, duration: number) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(freq, startTime);
+                gainNode.gain.setValueAtTime(0.3, startTime); 
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
+            };
+
+            const now = audioContext.currentTime;
+            playBeep(523.25, now, 0.1); 
+            playBeep(440.00, now + 0.15, 0.1);
+
+        } catch (err) {
+            console.error("Could not play deactivation sound", err);
+        }
+    }, [ensureAudioContext]);
+
     useEffect(() => {
         const loadVoices = () => {
             const voices = window.speechSynthesis.getVoices();
@@ -507,9 +537,11 @@ function App() {
 
                 if (finalTranscript === "nova off") {
                     console.log("Nova deactivated by user command.");
+                    playDeactivationSound();
                     setIsNovaResponding(false);
                 } else {
                     console.log("Prompt captured:", finalTranscript);
+                    playDeactivationSound();
                     handleSubmitRef.current?.(finalTranscript);
                     setIsNovaResponding(false); // Deactivate immediately after sending prompt
                 }
@@ -517,6 +549,7 @@ function App() {
                 // --- STATE: NOVA IS INACTIVE ---
                 if (finalTranscript.includes("nova")) {
                     console.log("Nova activated! Listening for prompt for 5 minutes.");
+                    playSound("Iya, tuan");
                     setIsNovaResponding(true);
                     setError(null); // Clear any previous errors
 
@@ -526,6 +559,7 @@ function App() {
                     }
                     novaActivationTimerRef.current = setTimeout(() => {
                         console.log("5-minute timeout reached. Nova deactivated.");
+                        playDeactivationSound();
                         setIsNovaResponding(false);
                         novaActivationTimerRef.current = null;
                     }, 5 * 60 * 1000); // 5 minutes
@@ -554,7 +588,7 @@ function App() {
                 clearTimeout(novaActivationTimerRef.current);
             }
         };
-    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, isNovaResponding]);
+    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, isNovaResponding, playSound, playDeactivationSound]);
 
 
     useEffect(() => {
