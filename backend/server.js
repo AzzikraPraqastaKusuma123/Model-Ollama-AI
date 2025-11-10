@@ -31,7 +31,7 @@ app.use(cors(corsOptions));
 
 app.use(express.json()); // Middleware untuk mem-parsing body JSON
 
-const HF_TOKEN = process.env.HF_TOKEN;
+
 const ollama = ollamaImport.default;
 
 if (!ollama || typeof ollama.chat !== 'function') {
@@ -166,14 +166,14 @@ app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
     const ollamaModel = req.body.model || "llama3";
-    const OLLAMA_TIMEOUT = 60000; 
-    const HF_ZEPHYR_TIMEOUT = 25000; 
-    const HF_LLAMA3_TIMEOUT = 45000;  
+     
+     
+      
 
     let rawReplyContent = "";
     let respondedBy = "";
-    let audioProvider = "";
-    let audioDataForFrontend = null;
+
+
     let primaryAIError = null;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -185,10 +185,7 @@ app.post('/api/chat', async (req, res) => {
         console.log(`   Mencoba model Ollama: ${ollamaModel} (Timeout: ${OLLAMA_TIMEOUT / 1000 === 60 ? '1 menit' : `${OLLAMA_TIMEOUT / 1000}s`})...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
         const ollamaOperation = ollama.chat({ model: ollamaModel, messages: ollamaChatMessages, stream: false });
-        const ollamaResponse = await Promise.race([
-            ollamaOperation,
-            createTimeoutPromise(OLLAMA_TIMEOUT, `Model Ollama (${ollamaModel}) timeout.`)
-        ]);
+        const ollamaResponse = await ollamaOperation;
         if (ollamaResponse?.message?.content) {
             rawReplyContent = ollamaResponse.message.content;
             respondedBy = `Ollama (${ollamaModel})`;
@@ -197,57 +194,6 @@ app.post('/api/chat', async (req, res) => {
     } catch (ollamaError) {
         console.warn(`   Gagal dari Ollama (${ollamaModel}): ${ollamaError.message}`);
         primaryAIError = ollamaError;
-
-        if (HF_TOKEN) {
-            console.log("   Ollama gagal, mencoba fallback LLM ke Hugging Face (Zephyr)...");
-            try {
-                const HF_LLM_MODEL_ID_ZEPHYR = "HuggingFaceH4/zephyr-7b-beta";
-                const HF_LLM_API_URL_ZEPHYR = "https://router.huggingface.co/hf-inference";
-                const zephyrFormattedPrompt = formatMessagesForZephyr(messages);
-                const hfZephyrPayload = { model: HF_LLM_MODEL_ID_ZEPHYR, inputs: zephyrFormattedPrompt, parameters: { return_full_text: false, max_new_tokens: 350, temperature: 0.7, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
-                console.log(`   Mengirim ke HF LLM (Zephyr) (Timeout: ${HF_ZEPHYR_TIMEOUT / 1000}s). Prompt (awal): "${zephyrFormattedPrompt.substring(0, 70)}..."`);
-                const zephyrOperation = fetch(HF_LLM_API_URL_ZEPHYR, { method: "POST", headers: { "Authorization": `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify(hfZephyrPayload) });
-                const hfZephyrResponse = await Promise.race([
-                    zephyrOperation,
-                    createTimeoutPromise(HF_ZEPHYR_TIMEOUT, `Model HF (Zephyr) timeout (${HF_ZEPHYR_TIMEOUT / 1000}s).`)
-                ]);
-                const responseZephyrText = await hfZephyrResponse.text();
-                if (!hfZephyrResponse.ok) { let e = `HF LLM (Zephyr) error: ${hfZephyrResponse.status} - ${responseZephyrText}`; try { e = JSON.parse(responseZephyrText).error || (Array.isArray(JSON.parse(responseZephyrText).errors) ? JSON.parse(responseZephyrText).errors.join(', ') : e); } catch (_) { } throw new Error(e); }
-                const hfZephyrData = JSON.parse(responseZephyrText);
-                if (Array.isArray(hfZephyrData) && hfZephyrData[0]?.generated_text) {
-                    rawReplyContent = hfZephyrData[0].generated_text.trim();
-                    respondedBy = `HF (Zephyr)`;
-                    console.log("   Respons dari HF LLM (Zephyr):", rawReplyContent.substring(0, 70) + "...");
-                    primaryAIError = null;
-                } else { throw new Error(`Struktur respons HF LLM (Zephyr) tidak dikenal.`); }
-            } catch (zephyrError) {
-                console.error("   Gagal dari HF LLM (Zephyr):", zephyrError.message);
-                console.log("   Zephyr gagal, mencoba fallback LLM ke Hugging Face (Llama 3)...");
-                try {
-                    const HF_LLM_MODEL_ID_LLAMA3 = "meta-llama/Llama-3-8B-Instruct";
-                    const HF_LLM_API_URL_LLAMA3 = "https://router.huggingface.co/hf-inference";
-                    const llama3FormattedInputs = formatMessagesForLlama3(messages);
-                    const hfLlama3Payload = { model: HF_LLM_MODEL_ID_LLAMA3, inputs: llama3FormattedInputs, parameters: { return_full_text: false, max_new_tokens: 450, temperature: 0.6, top_p: 0.9 }, options: { wait_for_model: true, use_cache: false } };
-                    console.log(`   Mengirim ke HF LLM (Llama 3) (Timeout: ${HF_LLAMA3_TIMEOUT / 1000}s). Prompt (awal): "${llama3FormattedInputs.substring(0, 70)}..."`);
-                    const llama3Operation = fetch(HF_LLM_API_URL_LLAMA3, { method: "POST", headers: { "Authorization": `Bearer ${HF_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify(hfLlama3Payload) });
-                    const hfLlama3Response = await Promise.race([
-                        llama3Operation,
-                        createTimeoutPromise(HF_LLAMA3_TIMEOUT, `Model HF (Llama 3) timeout (${HF_LLAMA3_TIMEOUT / 1000}s).`)
-                    ]);
-                    const responseLlama3Text = await hfLlama3Response.text();
-                    if (!hfLlama3Response.ok) { let e = `HF LLM (Llama 3) error: ${hfLlama3Response.status} - ${responseLlama3Text}`; try { e = JSON.parse(responseLlama3Text).error || (Array.isArray(JSON.parse(responseLlama3Text).errors) ? JSON.parse(responseLlama3Text).errors.join(', ') : e); } catch (_) { } throw new Error(e); }
-                    const hfLlama3Data = JSON.parse(responseLlama3Text);
-                    if (Array.isArray(hfLlama3Data) && hfLlama3Data[0]?.generated_text) {
-                        rawReplyContent = hfLlama3Data[0].generated_text.trim();
-                        respondedBy = `HF (Llama 3)`;
-                        console.log("   Respons dari HF LLM (Llama 3):", rawReplyContent.substring(0, 70) + "...");
-                        primaryAIError = null;
-                    } else { throw new Error(`Struktur respons HF LLM (Llama 3) tidak dikenal.`); }
-                } catch (llama3Error) {
-                    console.error("   Gagal dari HF LLM (Llama 3) juga:", llama3Error.message);
-                }
-            }
-        }
     }
 
     let textForProcessing = "";
@@ -257,25 +203,7 @@ app.post('/api/chat', async (req, res) => {
 
     const finalReplyContent = await translateTextWithMyMemory(textForProcessing, 'en', 'id');
 
-    if (finalReplyContent && HF_TOKEN) {
-        try {
-            console.log(`   Mencoba Gradio TTS: "${finalReplyContent.substring(0, 50)}..."`);
-            const { Client } = await import('@gradio/client'); 
-            const gradioClient = await Client.connect("NihalGazi/Text-To-Speech-Unlimited", { hf_token: HF_TOKEN });
-            const ttsResult = await gradioClient.predict("/text_to_speech_app", {
-                prompt: finalReplyContent, voice: "alloy", emotion: "neutral", use_random_seed: true,
-                specific_seed: Math.floor(Math.random() * 100000),
-            });
-            if (ttsResult?.data?.[0]) {
-                const audioInfo = ttsResult.data[0];
-                if (audioInfo.url || (audioInfo.data && audioInfo.name) || (audioInfo.path && audioInfo.is_file)) {
-                    audioDataForFrontend = audioInfo;
-                    audioProvider = "NihalGazi/TTS";
-                    console.log("   Audio Gradio didapatkan.");
-                } else { console.warn("   Gradio data[0] tidak ada 'url'/'data+name'/'path(file)' valid:", audioInfo); }
-            } else { console.warn("   Gradio TTS tidak mengembalikan data audio valid.", ttsResult?.data); }
-        } catch (gradioError) { console.error("   Error Gradio TTS:", gradioError); }
-    }
+
 
     let providerInfo = respondedBy;
     if (audioProvider) { providerInfo += ` + Suara: ${audioProvider}`; }
