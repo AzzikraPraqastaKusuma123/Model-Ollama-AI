@@ -279,6 +279,7 @@ function App() {
     const [isSpeakingTTSBrowser, setIsSpeakingTTSBrowser] = useState<boolean>(false);
     const [isPlayingTTSFromElement, setIsPlayingTTSFromElement] = useState<boolean>(false);
     const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]); // New state for backend logs
+    const [isNovaResponding, setIsNovaResponding] = useState<boolean>(false); // New state for Nova activation
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
@@ -295,6 +296,9 @@ function App() {
     const autoSubmitTimerRef = useRef<number | null>(null);
     // Ref to hold the latest handleSubmit function to avoid stale closures in timers
     const handleSubmitRef = useRef<((e?: React.FormEvent) => Promise<void>) | null>(null);
+    // Ref for inactivity timer
+    const inactivityTimerRef = useRef<number | null>(null);
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -321,7 +325,18 @@ function App() {
         return audioContextRef.current;
     }, []);
 
+    const resetInactivityTimer = useCallback(() => {
+        if (inactivityTimerRef.current) {
+            clearTimeout(inactivityTimerRef.current);
+        }
+        inactivityTimerRef.current = window.setTimeout(() => {
+            setIsNovaResponding(false);
+            console.log("Nova deactivated due to 15 minutes of inactivity.");
+        }, INACTIVITY_TIMEOUT_MS);
+    }, [setIsNovaResponding, INACTIVITY_TIMEOUT_MS]);
+
     const playSound = useCallback(async (dataOrText: string | any) => {
+        resetInactivityTimer(); // Reset inactivity timer on any sound playback
         const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
         if (!textToSpeak) return;
 
@@ -384,6 +399,16 @@ function App() {
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
     useEffect(() => { autoGrowTextarea(); }, [input, autoGrowTextarea]);
 
+    // Inactivity timer management
+    useEffect(() => {
+        resetInactivityTimer(); // Initialize or reset timer on component mount/activity
+        return () => {
+            if (inactivityTimerRef.current) {
+                clearTimeout(inactivityTimerRef.current);
+            }
+        };
+    }, [resetInactivityTimer, isNovaResponding]); // Reset timer when Nova state changes or any activity
+
     // --- LOG FETCHING ---
     const fetchLogs = useCallback(async () => {
         try {
@@ -412,6 +437,13 @@ function App() {
     // --- MODIFIED HANDLESUBMIT ---
     const handleSubmit = useCallback(async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
+        resetInactivityTimer(); // Reset inactivity timer on user submission
+
+        if (!isNovaResponding) {
+            console.log("Nova is not active, AI will not respond to this input.");
+            // Optionally, provide user feedback here, e.g., a toast message
+            return;
+        }
 
         if (autoSubmitTimerRef.current) {
             clearTimeout(autoSubmitTimerRef.current);
@@ -420,9 +452,7 @@ function App() {
 
         const trimmedInput = input.trim();
         if (trimmedInput && !isLoading) {
-            if (isListening && recognitionRef.current) {
-                try { recognitionRefRef.current.stop(); } catch(e){}
-            }
+            // ... (rest of the handleSubmit function) ...
 
             const newMessage: Message = { role: "user", content: trimmedInput, timestamp: getCurrentTimestamp() };
             setMessages((prevMessages) => [...prevMessages, newMessage]);
@@ -468,7 +498,7 @@ function App() {
         handleSubmitRef.current = handleSubmit;
     }, [handleSubmit]);
 
-    // --- MODIFIED SPEECH RECOGNITION EFFECT ---
+    // --- SPEECH RECOGNITION SETUP EFFECT ---
     useEffect(() => {
         const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognitionAPI) {
@@ -484,15 +514,17 @@ function App() {
         recognitionInstance.onstart = () => {
             console.log("STT dimulai.");
             setError(null);
+            setIsListening(true); // Set isListening to true when STT starts
             if (isSpeakingTTSBrowser && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
             if (isPlayingTTSFromElement && audioPlayerRef.current) audioPlayerRef.current.pause();
         };
         recognitionInstance.onend = () => {
             console.log("STT berakhir.");
-            setIsListening(false);
-            if (autoSubmitTimerRef.current) {
-                clearTimeout(autoSubmitTimerRef.current);
-                autoSubmitTimerRef.current = null;
+            setIsListening(false); // Set isListening to false when STT ends
+            // Attempt to restart recognition if it ended unexpectedly (e.g., due to timeout)
+            if (recognitionRef.current && !recognitionRef.current.abort) { // Check if not manually aborted
+                console.log("STT ended unexpectedly, attempting to restart...");
+                recognitionRef.current.start();
             }
         };
         recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -507,32 +539,87 @@ function App() {
             setIsListening(false);
         };
         
-        let finalTranscript = '';
-        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
-            if (autoSubmitTimerRef.current) {
-                clearTimeout(autoSubmitTimerRef.current);
-            }
-
+        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+            console.error('Speech recognition error:', event.error, event.message);
+            let userMessage = `Error STT: ${event.error}.`;
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') userMessage = 'Akses mikrofon tidak diizinkan. Periksa izin browser Anda.';
+            else if (event.error === 'no-speech' && isListening) userMessage = "Tidak ada suara terdeteksi. Coba lagi.";
+            else if (event.error === 'audio-capture') userMessage = "Masalah dengan mikrofon. Pastikan terhubung.";
+            else if (event.error === 'network') userMessage = "Masalah jaringan dengan layanan STT.";
+            
+            if (userMessage !== `Error STT: ${event.error}.` || event.error === 'network') setError(userMessage);
+            setIsListening(false);
+        };
+        
+        recognitionInstance.onresult = async (event: SpeechRecognitionEvent) => {
+            resetInactivityTimer(); // Reset inactivity timer on speech input
             let interimTranscript = '';
+            let finalTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript.trim() + ' ';
+                    finalTranscript += transcript;
                 } else {
-                    interimTranscript += event.results[i][0].transcript;
+                    interimTranscript += transcript;
                 }
             }
             
-            setInput(finalTranscript.trim() + (interimTranscript ? ' ' + interimTranscript : ''));
-
-            autoSubmitTimerRef.current = window.setTimeout(() => {
-                console.log("Auto-submitting after 3 seconds of silence...");
-                if (handleSubmitRef.current) {
-                    handleSubmitRef.current();
+            // Update input with interim transcript for immediate feedback
+            setInput(prevInput => {
+                // Only update if interim results are meaningful or if final transcript is available
+                if (interimTranscript.trim() || finalTranscript.trim()) {
+                    return finalTranscript.trim() || interimTranscript.trim();
                 }
-            }, 3000); // 3-second delay
+                return prevInput;
+            });
+
+            if (finalTranscript.trim()) {
+                console.log("Final Transcript:", finalTranscript);
+                // Send final transcript to backend for keyword detection
+                try {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333";
+                    const response = await fetch(`${backendUrl}/api/keyword-detect`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ transcript: finalTranscript }),
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (typeof data.novaResponding === 'boolean') {
+                        setIsNovaResponding(data.novaResponding);
+                        if (data.novaResponding) {
+                            console.log("Nova activated!");
+                            // If Nova is activated by voice, and there's a pending input, submit it
+                            if (finalTranscript.trim() !== "nova") { // Avoid submitting "nova" as a message
+                                if (handleSubmitRef.current) {
+                                    // Temporarily set input to finalTranscript and then submit
+                                    setInput(finalTranscript);
+                                    // Use a timeout to ensure state update for input is processed
+                                    setTimeout(() => handleSubmitRef.current?.(), 0);
+                                }
+                            }
+                        } else {
+                            console.log("Nova deactivated!");
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error sending transcript to backend:", err);
+                    setError("Gagal mendeteksi kata kunci.");
+                }
+            }
         };
 
         recognitionRef.current = recognitionInstance;
+
+        // Start recognition on mount
+        try {
+            recognitionRef.current.start();
+        } catch (e) {
+            console.error("Error starting initial speech recognition:", e);
+            setError("Gagal memulai STT awal.");
+        }
 
         return () => {
             if (recognitionRef.current) {
@@ -540,13 +627,11 @@ function App() {
                 recognitionRef.current.onresult = null;
                 recognitionRef.current.onerror = null;
                 recognitionRef.current.onend = null;
-                try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
-            }
-            if (autoSubmitTimerRef.current) {
-                clearTimeout(autoSubmitTimerRef.current);
+                try { recognitionRef.current.abort(); } catch (e) { /* ignore */ } // Abort cleanly
             }
         };
-    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement]); // Dependencies managed
+    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, setIsNovaResponding]); // Added setIsNovaResponding to dependencies
+
 
     useEffect(() => {
         // Setup STT AnalyserNode
@@ -596,39 +681,25 @@ function App() {
 
     // --- MODIFIED HANDLETOGGLELISTEN ---
     const handleToggleListen = async () => {
+        // This function now primarily acts as a manual trigger for input or to clear it.
+        // SpeechRecognition is always running in the background.
+
         if (autoSubmitTimerRef.current) {
             clearTimeout(autoSubmitTimerRef.current);
             autoSubmitTimerRef.current = null;
         }
 
-        if (!recognitionRef.current) {
-            setError("Fitur input suara tidak didukung browser ini.");
-            return;
-        }
-        
-        if (isListening) {
-            try {
-                recognitionRef.current.stop();
-                // Manually trigger submit if there's content in the input
-                if (input.trim()) {
-                    handleSubmit();
-                }
-            } catch(e) { console.warn("Error stopping STT:", e); }
-        } else {
-            setError(null);
-            try {
-                await ensureAudioContext();
-                if (isSpeakingTTSBrowser && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
-                if (isPlayingTTSFromElement && audioPlayerRef.current) audioPlayerRef.current.pause();
-
-                setIsListening(true);
-                recognitionRef.current.start();
-            } catch (e: any) {
-                console.error("Gagal memulai speech recognition:", e.message, e.name);
-                setError(`Gagal memulai STT: ${e.message}.`);
-                setIsListening(false);
+        // If there's input, and Nova is responding, treat this as a manual submit
+        if (input.trim() && isNovaResponding) {
+            if (handleSubmitRef.current) {
+                handleSubmitRef.current();
             }
+        } else {
+            // Otherwise, clear the input
+            setInput("");
+            if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
         }
+        // No need to start/stop recognitionRef.current here, it's managed by its useEffect
     };
     
     const anyTTSSpeaking = isSpeakingTTSBrowser || isPlayingTTSFromElement;
@@ -654,7 +725,7 @@ function App() {
                             height={120}     
                         />
                         <p className={styles.waveformStatusText}>
-                            {isListening ? "Mendengarkan..." : "AI Berbicara..."}
+                            {isNovaResponding ? "Nova Aktif: Mendengarkan..." : "Nova Tidak Aktif: Ucapkan 'Nova'..."}
                         </p>
                     </div>
                 )}
@@ -702,20 +773,20 @@ function App() {
                             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isLoading && !isListening) { handleSubmit(e); } }}
                             className={styles.inputTextArea} 
                             rows={1} 
-                            disabled={isLoading || anyTTSSpeaking} 
+                            disabled={isLoading || anyTTSSpeaking || !isNovaResponding} 
                         />
                         <button
                             type="button" 
                             onClick={handleToggleListen}
-                            className={`${styles.iconButton} ${isListening ? styles.micButtonListening : styles.micButtonIdle} ${isListening ? styles.micButtonWithText : ''}`}
+                            className={`${styles.iconButton} ${isListening ? styles.micButtonListening : styles.micButtonIdle} ${isNovaResponding ? styles.micButtonListening : ''}`} // Change color if Nova is responding
                             aria-label={isListening ? "Hentikan Merekam" : "Rekam Suara"}
                             disabled={isLoading || anyTTSSpeaking} 
                         >
-                            {isListening ? <span>Hentikan</span> : <MicrophoneIcon />}
+                            {isNovaResponding ? <span>Nova Aktif</span> : <MicrophoneIcon />}
                         </button>
                         <button
                             type="submit" 
-                            disabled={!input.trim() || isLoading || anyTTSSpeaking}
+                            disabled={!input.trim() || isLoading || anyTTSSpeaking || !isNovaResponding}
                             className={styles.sendButton} 
                             aria-label="Kirim pesan"
                         >

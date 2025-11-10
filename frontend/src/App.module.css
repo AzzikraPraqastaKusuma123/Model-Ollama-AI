@@ -6,7 +6,7 @@
 /* Main App Layout */
 .appContainer {
   display: grid;
-  grid-template-columns: 250px 1fr; /* Log viewer 250px, main content takes rest */
+  grid-template-columns: 350px 1fr; /* Log viewer 350px, main content takes rest */
   grid-template-rows: auto 1fr auto; /* Header, main content, input form */
   height: 100vh;
   width: 100vw;
@@ -319,6 +319,7 @@
   margin-bottom: 0.25rem;
   padding: 0.25rem 0;
   border-bottom: 1px dotted var(--muted); /* Using muted color for dotted border */
+  align-items: baseline; /* Align items to the baseline for better visual flow */
 }
 
 .logEntry:last-child {
@@ -328,11 +329,24 @@
 .logTimestamp {
   color: var(--muted-foreground);
   flex-shrink: 0;
+  max-width: 70px; /* Limit timestamp width */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis for long timestamps */
+  white-space: nowrap;
 }
 
 .logLevel {
   font-weight: bold;
   flex-shrink: 0;
+  max-width: 60px; /* Limit level width */
+  text-align: right;
+}
+
+.logMessage {
+  flex-grow: 1; /* Allow message to take remaining space */
+  overflow-wrap: break-word; /* Prefer overflow-wrap for better readability */
+  word-break: break-word; /* Fallback for older browsers and aggressive breaking */
+  white-space: normal; /* Ensure normal wrapping */
 }
 
 /* Log Level Colors */

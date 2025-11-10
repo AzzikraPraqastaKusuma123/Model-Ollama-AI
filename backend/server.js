@@ -254,6 +254,26 @@ async function translateTextWithMyMemory(textToTranslate, sourceLang = 'en', tar
 }
 
 
+app.post('/api/keyword-detect', (req, res) => {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: "Text is required in the request body." });
+    }
+
+    const lowerCaseText = text.toLowerCase();
+    let novaResponding = false;
+
+    if (lowerCaseText.includes('nova off')) {
+        novaResponding = false;
+        console.log('Keyword detected: "nova off". Nova responding set to FALSE.');
+    } else if (lowerCaseText.includes('nova')) {
+        novaResponding = true;
+        console.log('Keyword detected: "nova". Nova responding set to TRUE.');
+    }
+
+    res.json({ novaResponding });
+});
+
 app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
