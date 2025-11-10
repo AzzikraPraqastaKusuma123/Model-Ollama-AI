@@ -14,7 +14,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- KONFIGURASI CORS YANG DISEMPURNAKAN DAN DISEMPURNAKAN ---
+// --- KONFIGURASI CORS YANG DISEMPURNAKAN DAN DISEMPERNAKAN ---
 const corsOptions = {
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
@@ -25,13 +25,13 @@ const corsOptions = {
 };
 
 // Terapkan middleware CORS untuk SEMUA rute dan SEMUA metode (termasuk OPTIONS).
-// Pustaka `cors` akan secara otomatis menangani permintaan preflight OPTIONS.
+// Pustaka `cors` akan secara otomatis menangani respons untuk permintaan OPTIONS.
 app.use(cors(corsOptions));
 // --- AKHIR KONFIGURASI CORS ---
 
 app.use(express.json()); // Middleware untuk mem-parsing body JSON
 
-
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Ambil API Key Gemini dari .env
 const ollama = ollamaImport.default;
 
 if (!ollama || typeof ollama.chat !== 'function') {
@@ -40,18 +40,78 @@ if (!ollama || typeof ollama.chat !== 'function') {
     console.log("Pustaka Ollama terdeteksi dan siap digunakan saat startup.");
 }
 
+// Fungsi untuk memanggil Gemini API
+async function callGeminiAPI(messages, apiKey) {
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY tidak ditemukan di environment variables.");
+    }
+
+    // Format pesan untuk Gemini API
+    // Gemini API mengharapkan peran user/model bergantian.
+    // Pesan pertama harus selalu dari 'user'.
+    let formattedMessages = messages.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+    }));
+
+    // Tambahkan system instruction sebagai pesan user pertama jika belum ada
+    const systemInstruction = "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas dalam Bahasa Indonesia.";
+    if (!formattedMessages[0] || formattedMessages[0].role !== 'user' || !formattedMessages[0].parts[0].text.includes(systemInstruction)) {
+        formattedMessages.unshift({
+            role: 'user',
+            parts: [{ text: systemInstruction }]
+        });
+        // Tambahkan respons model dummy untuk menjaga peran bergantian
+        formattedMessages.unshift({
+            role: 'model',
+            parts: [{ text: "Baik, saya akan menjawab pertanyaan Anda sebagai asisten AI yang membantu dan ramah dalam Bahasa Indonesia." }]
+        });
+    }
+    // Pastikan pesan terakhir dari 'user' untuk memicu generasi
+    if (formattedMessages[formattedMessages.length - 1].role === 'model') {
+        formattedMessages.push({
+            role: 'user',
+            parts: [{ text: "Lanjutkan percakapan." }] // Pesan dummy untuk memicu generasi
+        });
+    }
 
 
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: formattedMessages,
+                generationConfig: {
+                    temperature: 0.7,
+                    topP: 0.9,
+                    topK: 40,
+                    maxOutputTokens: 1024,
+                },
+            }),
+        });
 
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(`Gemini API error: ${response.status} - ${errorBody.error?.message || JSON.stringify(errorBody)}`);
+        }
 
+        const data = await response.json();
+        const geminiContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
+        if (!geminiContent) {
+            throw new Error("Struktur respons Gemini tidak valid atau tidak ada konten.");
+        }
 
+        return { message: { content: geminiContent }, model: "Gemini-Pro" };
 
-
-
-
-
-
+    } catch (error) {
+        console.error("Error saat memanggil Gemini API:", error.message);
+        throw error;
+    }
+}
 
 
 async function processTextInChunks(text, sourceLang, targetLang, maxChunkLength) {
@@ -148,7 +208,6 @@ async function translateTextWithMyMemory(textToTranslate, sourceLang = 'en', tar
 app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
-    const qualityModel = "llama3"; // Model yang lebih pintar
     const speedModel = "gemma:2b";   // Model yang lebih cepat
 
     let rawReplyContent = "";
@@ -162,27 +221,25 @@ app.post('/api/chat', async (req, res) => {
     try {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
         
-        console.log(`   Memulai balapan model: ${qualityModel} vs ${speedModel}...`);
+        console.log(`   Memulai balapan model: Gemini-Pro vs ${speedModel}...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
 
         // Mulai kedua operasi secara bersamaan
-        const qualityOperation = ollama.chat({ model: qualityModel, messages: ollamaChatMessages, stream: false });
+        const geminiOperation = callGeminiAPI(messages, GEMINI_API_KEY); // Panggil Gemini
         const speedOperation = ollama.chat({ model: speedModel, messages: ollamaChatMessages, stream: false });
 
         // "Lombakan" keduanya!
-        const winner = await Promise.race([qualityOperation, speedOperation]);
+        const winner = await Promise.race([geminiOperation, speedOperation]);
 
         if (winner?.message?.content) {
             rawReplyContent = winner.message.content;
-            // The response object from ollama.chat includes the model name
-            respondedBy = `Ollama (${winner.model})`; 
+            respondedBy = `Ollama (${winner.model})`; // winner.model will be 'Gemini-Pro' or 'gemma:2b'
             console.log(`   Pemenang balapan adalah ${winner.model}:`, rawReplyContent.substring(0, 70) + "...");
         } else {
             throw new Error(`Struktur respons tidak valid dari pemenang balapan.`);
         }
 
     } catch (error) {
-        // Blok ini sekarang akan menangkap jika KEDUA model gagal
         console.error(`   Terjadi error pada kedua model: ${error.message}`);
         primaryAIError = error;
     }
