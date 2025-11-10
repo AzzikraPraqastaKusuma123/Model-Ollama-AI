@@ -40,36 +40,11 @@ if (!ollama || typeof ollama.chat !== 'function') {
     console.log("Pustaka Ollama terdeteksi dan siap digunakan saat startup.");
 }
 
-function createTimeoutPromise(ms, errorMessage = 'Operasi melebihi batas waktu') {
-    return new Promise((_, reject) => setTimeout(() => reject(new Error(errorMessage)), ms));
-}
 
-function formatMessagesForZephyr(messagesArray) {
-    const relevantMessages = messagesArray.slice(-5);
-    let promptString = "<|system|>\nAnda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas.</s>\n";
-    relevantMessages.forEach(msg => {
-        if (msg.role === 'user' || msg.role === 'assistant') {
-            promptString += `<|${msg.role}|>\n${msg.content}</s>\n`;
-        }
-    });
-    promptString += "<|assistant|>\n";
-    return promptString;
-}
 
-function formatMessagesForLlama3(messagesArray, systemMessage = "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas dalam Bahasa Indonesia.") {
-    const relevantMessages = messagesArray.slice(-5);
-    let promptString = "<|begin_of_text|>";
-    if (systemMessage) {
-        promptString += `<|start_header_id|>system<|end_header_id|>\n\n${systemMessage}<|eot_id|>`;
-    }
-    relevantMessages.forEach(msg => {
-        if (msg.role === 'user' || msg.role === 'assistant') {
-            promptString += `<|start_header_id|>${msg.role}<|end_header_id|>\n\n${msg.content}<|eot_id|>`;
-        }
-    });
-    promptString += "<|start_header_id|>assistant<|end_header_id|>\n\n";
-    return promptString;
-}
+
+
+
 
 async function processTextInChunks(text, sourceLang, targetLang, maxChunkLength) {
     const translatedParts = [];
@@ -182,7 +157,7 @@ app.post('/api/chat', async (req, res) => {
 
     try {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
-        console.log(`   Mencoba model Ollama: ${ollamaModel} (Timeout: ${OLLAMA_TIMEOUT / 1000 === 60 ? '1 menit' : `${OLLAMA_TIMEOUT / 1000}s`})...`);
+        console.log(`   Mencoba model Ollama: ${ollamaModel}...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
         const ollamaOperation = ollama.chat({ model: ollamaModel, messages: ollamaChatMessages, stream: false });
         const ollamaResponse = await ollamaOperation;
@@ -206,9 +181,8 @@ app.post('/api/chat', async (req, res) => {
 
 
     let providerInfo = respondedBy;
-    if (audioProvider) { providerInfo += ` + Suara: ${audioProvider}`; }
-    console.log(`   [${new Date().toISOString()}] Mengirim respons untuk /api/chat:`, { role: "assistant", content: finalReplyContent.substring(0,50)+'...', provider: providerInfo, audioData: audioDataForFrontend ? 'Ada data audio' : 'Tidak ada data audio' });
-    res.json({ reply: { role: "assistant", content: finalReplyContent, provider: providerInfo, audioData: audioDataForFrontend } });
+    console.log(`   [${new Date().toISOString()}] Mengirim respons untuk /api/chat:`, { role: "assistant", content: finalReplyContent.substring(0,50)+'...', provider: providerInfo });
+    res.json({ reply: { role: "assistant", content: finalReplyContent, provider: providerInfo } });
 });
 
 app.get('/', (req, res) => { res.send('Chat backend siap!'); });
