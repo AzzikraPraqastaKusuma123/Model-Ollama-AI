@@ -40,29 +40,23 @@ if (!ollama || typeof ollama.chat !== 'function') {
     console.log("Pustaka Ollama terdeteksi dan siap digunakan saat startup.");
 }
 
-// Fungsi untuk memanggil Gemini API
+// Fungsi untuk memanggil Gemini API (VERSI DIAGNOSIS)
 async function callGeminiAPI(messages, apiKey) {
     if (!apiKey) {
         throw new Error("GEMINI_API_KEY tidak ditemukan di environment variables.");
     }
 
-    // Format pesan untuk Gemini API
-    // Gemini API mengharapkan peran user/model bergantian.
-    // Pesan pertama harus selalu dari 'user'.
-    let formattedMessages = messages.map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-    }));
+    // Ambil hanya pesan terakhir dari user untuk diagnosis
+    const lastUserMessage = messages.filter(msg => msg.role === 'user').pop();
 
-    // Pastikan pesan terakhir dari 'user' untuk memicu generasi
-    // Jika pesan terakhir dari 'model', tambahkan pesan user dummy
-    if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'model') {
-        formattedMessages.push({
-            role: 'user',
-            parts: [{ text: "Lanjutkan percakapan." }] // Pesan dummy untuk memicu generasi
-        });
+    if (!lastUserMessage) {
+        throw new Error("Tidak ada pesan user yang ditemukan untuk dikirim ke Gemini.");
     }
 
+    const formattedContent = [{
+        role: 'user',
+        parts: [{ text: lastUserMessage.content }]
+    }];
 
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
@@ -71,7 +65,7 @@ async function callGeminiAPI(messages, apiKey) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                contents: formattedMessages,
+                contents: formattedContent, // Kirim hanya pesan terakhir
                 generationConfig: {
                     temperature: 0.7,
                     topP: 0.9,
