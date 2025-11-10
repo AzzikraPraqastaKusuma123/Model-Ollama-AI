@@ -40,7 +40,7 @@ if (!ollama || typeof ollama.chat !== 'function') {
     console.log("Pustaka Ollama terdeteksi dan siap digunakan saat startup.");
 }
 
-// Fungsi untuk memanggil Gemini API (VERSI DIAGNOSIS)
+// Fungsi untuk memanggil Gemini API
 async function callGeminiAPI(messages, apiKey) {
     if (!apiKey) {
         throw new Error("GEMINI_API_KEY tidak ditemukan di environment variables.");
@@ -59,7 +59,8 @@ async function callGeminiAPI(messages, apiKey) {
     }];
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        // Menggunakan model gemini-2.0-flash sesuai dengan curl yang diberikan
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -87,7 +88,7 @@ async function callGeminiAPI(messages, apiKey) {
             throw new Error("Struktur respons Gemini tidak valid atau tidak ada konten.");
         }
 
-        return { message: { content: geminiContent }, model: "Gemini-Pro" };
+        return { message: { content: geminiContent }, model: "Gemini-2.0-Flash" }; // Update model name here
 
     } catch (error) {
         console.error("Error saat memanggil Gemini API:", error.message);
@@ -203,7 +204,7 @@ app.post('/api/chat', async (req, res) => {
     try {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
         
-        console.log(`   Memulai balapan model: Gemini-Pro vs ${speedModel}...`);
+        console.log(`   Memulai balapan model: Gemini-2.0-Flash vs ${speedModel}...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
 
         // Mulai kedua operasi secara bersamaan
@@ -215,7 +216,7 @@ app.post('/api/chat', async (req, res) => {
 
         if (winner?.message?.content) {
             rawReplyContent = winner.message.content;
-            respondedBy = `Ollama (${winner.model})`; // winner.model will be 'Gemini-Pro' or 'gemma:2b'
+            respondedBy = `Ollama (${winner.model})`; // winner.model will be 'Gemini-2.0-Flash' or 'gemma:2b'
             console.log(`   Pemenang balapan adalah ${winner.model}:`, rawReplyContent.substring(0, 70) + "...");
         } else {
             throw new Error(`Struktur respons tidak valid dari pemenang balapan.`);
