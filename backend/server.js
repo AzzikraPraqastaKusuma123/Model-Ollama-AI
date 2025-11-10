@@ -336,6 +336,10 @@ app.post('/api/chat', async (req, res) => {
     res.json({ reply: { role: "assistant", content: finalReplyContent, provider: providerInfo } });
 });
 
+app.get('/api/logs', (req, res) => {
+    res.json(logBuffer);
+});
+
 app.get('/', (req, res) => { res.send('Chat backend siap!'); });
 
 app.use((err, req, res, next) => {
