@@ -269,7 +269,7 @@ const getCurrentTimestamp = () => {
 
 function App() {
     const [messages, setMessages] = useState<Message[]>([
-        { role: "assistant", content: "Halo! Saya Asisten AI Anda. Ada yang bisa dibantu?", timestamp: getCurrentTimestamp(), provider: "Sistem" },
+        { role: "assistant", content: "Halo! Ucapkan 'Nova' untuk memulai.", timestamp: getCurrentTimestamp(), provider: "Sistem" },
     ]);
     const [input, setInput] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -278,8 +278,8 @@ function App() {
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isSpeakingTTSBrowser, setIsSpeakingTTSBrowser] = useState<boolean>(false);
     const [isPlayingTTSFromElement, setIsPlayingTTSFromElement] = useState<boolean>(false);
-    const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]); // New state for backend logs
-    const [isNovaResponding, setIsNovaResponding] = useState<boolean>(false); // New state for Nova activation
+    const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]);
+    const [isNovaResponding, setIsNovaResponding] = useState<boolean>(false);
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
@@ -292,13 +292,10 @@ function App() {
     const ttsAudioElementAnalyserNodeRef = useRef<AnalyserNode | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     
-    // --- REFS FOR AUTO-SUBMIT ---
-    const autoSubmitTimerRef = useRef<number | null>(null);
-    // Ref for auto-submit after silence
-    const autoSubmitSilenceTimerRef = useRef<number | null>(null);
-    const AUTO_SUBMIT_SILENCE_TIMEOUT_MS = 7 * 60 * 1000; // 7 minutes in milliseconds
-    // Ref to hold the latest handleSubmit function to avoid stale closures in timers
-    const handleSubmitRef = useRef<((e?: React.FormEvent) => Promise<void>) | null>(null);
+    // --- REFS FOR NEW FLOW ---
+    const novaActivationTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const handleSubmitRef = useRef<((prompt: string) => Promise<void>) | null>(null);
+
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -318,39 +315,24 @@ function App() {
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         }
-        // Resume context if it's suspended (e.g., after user interaction)
         if (audioContextRef.current.state === 'suspended') {
             await audioContextRef.current.resume();
         }
         return audioContextRef.current;
     }, []);
 
-    const resetAutoSubmitSilenceTimer = useCallback(() => {
-        if (autoSubmitSilenceTimerRef.current) {
-            clearTimeout(autoSubmitSilenceTimerRef.current);
-        }
-        autoSubmitSilenceTimerRef.current = window.setTimeout(() => {
-            if (isNovaResponding && input.trim() && handleSubmitRef.current) {
-                console.log("Auto-submitting due to 7 minutes of silence.");
-                handleSubmitRef.current();
-            }
-        }, AUTO_SUBMIT_SILENCE_TIMEOUT_MS);
-    }, [isNovaResponding, input, handleSubmitRef, AUTO_SUBMIT_SILENCE_TIMEOUT_MS]);
-
     const playSound = useCallback(async (dataOrText: string | any) => {
         const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
         if (!textToSpeak) return;
 
-        // Stop any ongoing browser TTS
         if (typeof speechSynthesis !== 'undefined') {
             speechSynthesis.cancel();
         }
         setIsSpeakingTTSBrowser(true);
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.lang = 'id-ID'; // Set language to Indonesian
+        utterance.lang = 'id-ID';
 
-        // Try to find an Indonesian voice
         const voices = window.speechSynthesis.getVoices();
         const indonesianVoice = voices.find(voice => voice.lang === 'id-ID');
         if (indonesianVoice) {
@@ -369,25 +351,14 @@ function App() {
         };
 
         window.speechSynthesis.speak(utterance);
-
-        // --- TTS AnalyserNode Connection Attempt ---
-        // This is a complex part because window.speechSynthesis does not expose its audio stream directly.
-        // The RadialPulseWaveform will animate based on the 'isActive' prop in a simplified way.
-        // For a true audio-driven visualization of speechSynthesis, a MediaStreamDestinationNode
-        // would be needed to capture the output, but its support varies and it's less direct.        
-        // So, RadialPulseWaveform will simply animate when isActive is true.
-        // It's not truly 'following the volume' of the speechSynthesis output itself without advanced workarounds.
-
-    }, [ensureAudioContext]);
+    }, []);
 
     useEffect(() => {
-        // Load voices when component mounts
         const loadVoices = () => {
             const voices = window.speechSynthesis.getVoices();
             setAvailableVoices(voices);
         };
 
-        // Some browsers load voices asynchronously
         if (typeof window.speechSynthesis !== 'undefined') {
             if (window.speechSynthesis.getVoices().length > 0) {
                 loadVoices();
@@ -400,14 +371,11 @@ function App() {
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
     useEffect(() => { autoGrowTextarea(); }, [input, autoGrowTextarea]);
 
-    // --- LOG FETCHING ---
     const fetchLogs = useCallback(async () => {
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333";
             const response = await fetch(`${backendUrl}/api/logs`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data: LogEntry[] = await response.json();
             setBackendLogs(data);
         } catch (err) {
@@ -417,34 +385,16 @@ function App() {
 
     useEffect(() => {
         let logInterval: number | undefined;
-        fetchLogs(); // Fetch immediately
-        logInterval = window.setInterval(fetchLogs, 3000); // Poll every 3 seconds
+        fetchLogs();
+        logInterval = window.setInterval(fetchLogs, 3000);
         return () => {
             if (logInterval) clearInterval(logInterval);
         };
     }, [fetchLogs]);
 
-
-    // --- MODIFIED HANDLESUBMIT ---
-    const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        resetAutoSubmitSilenceTimer(); // Reset auto-submit timer on manual submission
-
-        if (!isNovaResponding) {
-            console.log("Nova is not active, AI will not respond to this input.");
-            // Optionally, provide user feedback here, e.g., a toast message
-            return;
-        }
-
-        if (autoSubmitTimerRef.current) {
-            clearTimeout(autoSubmitTimerRef.current);
-            autoSubmitTimerRef.current = null;
-        }
-
-        const trimmedInput = input.trim();
+    const sendPromptToAI = useCallback(async (prompt: string) => {
+        const trimmedInput = prompt.trim();
         if (trimmedInput && !isLoading) {
-            // ... (rest of the handleSubmit function) ...
-
             const newMessage: Message = { role: "user", content: trimmedInput, timestamp: getCurrentTimestamp() };
             setMessages((prevMessages) => [...prevMessages, newMessage]);
             setInput("");
@@ -482,14 +432,22 @@ function App() {
                 setIsLoading(false);
             }
         }
-    }, [input, isLoading, isListening, messages, playSound]);
+    }, [isLoading, messages, playSound]);
 
-    // Keep the ref updated with the latest handleSubmit function
+    const handleFormSubmit = useCallback(async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isNovaResponding) {
+            sendPromptToAI(input);
+        } else {
+            console.log("Nova is not active. Please say 'Nova' to activate.");
+            setError("Nova tidak aktif. Ucapkan 'Nova' untuk memulai.");
+        }
+    }, [input, isNovaResponding, sendPromptToAI]);
+
     useEffect(() => {
-        handleSubmitRef.current = handleSubmit;
-    }, [handleSubmit]);
+        handleSubmitRef.current = sendPromptToAI;
+    }, [sendPromptToAI]);
 
-    // --- SPEECH RECOGNITION SETUP EFFECT ---
     useEffect(() => {
         const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognitionAPI) {
@@ -499,20 +457,19 @@ function App() {
         
         const recognitionInstance: SpeechRecognition = new SpeechRecognitionAPI();
         recognitionInstance.continuous = true;
-        recognitionInstance.interimResults = true;
+        recognitionInstance.interimResults = false; // Process only final results for clarity
         recognitionInstance.lang = 'id-ID';
         
         recognitionInstance.onstart = () => {
             console.log("STT dimulai.");
             setError(null);
-            setIsListening(true); // Set isListening to true when STT starts
+            setIsListening(true);
             if (isSpeakingTTSBrowser && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
             if (isPlayingTTSFromElement && audioPlayerRef.current) audioPlayerRef.current.pause();
         };
         recognitionInstance.onend = () => {
             console.log("STT berakhir. Memulai ulang...");
-            setIsListening(false); // Set isListening to false when STT ends
-            // Unconditionally restart recognition to keep mic always active
+            setIsListening(false);
             if (recognitionRef.current) {
                 recognitionRef.current.start();
             }
@@ -529,76 +486,55 @@ function App() {
             setIsListening(false);
         };
         
-        recognitionInstance.onresult = async (event: SpeechRecognitionEvent) => {
+        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+            const finalTranscript = Array.from(event.results)
+                .map(result => result[0])
+                .map(result => result.transcript)
+                .join('')
+                .trim()
+                .toLowerCase();
+
+            if (!finalTranscript) return;
+
+            console.log("Final Transcript:", finalTranscript);
+
             if (isNovaResponding) {
-                resetAutoSubmitSilenceTimer(); // Reset auto-submit timer on speech input if Nova is responding
-            }
-            let interimTranscript = '';
-            let finalTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript;
+                // --- STATE: NOVA IS ACTIVE ---
+                if (novaActivationTimerRef.current) {
+                    clearTimeout(novaActivationTimerRef.current);
+                    novaActivationTimerRef.current = null;
+                }
+
+                if (finalTranscript === "nova off") {
+                    console.log("Nova deactivated by user command.");
+                    setIsNovaResponding(false);
                 } else {
-                    interimTranscript += transcript;
+                    console.log("Prompt captured:", finalTranscript);
+                    handleSubmitRef.current?.(finalTranscript);
+                    setIsNovaResponding(false); // Deactivate immediately after sending prompt
                 }
-            }
-            
-            // Update input with interim transcript for immediate feedback
-            setInput(prevInput => {
-                // Only update if interim results are meaningful or if final transcript is available
-                if (interimTranscript.trim() || finalTranscript.trim()) {
-                    return finalTranscript.trim() || interimTranscript.trim();
-                }
-                return prevInput;
-            });
+            } else {
+                // --- STATE: NOVA IS INACTIVE ---
+                if (finalTranscript.includes("nova")) {
+                    console.log("Nova activated! Listening for prompt for 5 minutes.");
+                    setIsNovaResponding(true);
+                    setError(null); // Clear any previous errors
 
-            if (finalTranscript.trim()) {
-                console.log("Final Transcript:", finalTranscript);
-                // Send final transcript to backend for keyword detection
-                try {
-                    const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333";
-                    const response = await fetch(`${backendUrl}/api/keyword-detect`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: finalTranscript }),
-                    });
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                    // Start 5-minute timeout
+                    if (novaActivationTimerRef.current) {
+                        clearTimeout(novaActivationTimerRef.current);
                     }
-                    const data = await response.json();
-                    if (typeof data.novaResponding === 'boolean') {
-                        setIsNovaResponding(data.novaResponding);
-                        if (data.novaResponding) {
-                            console.log("Nova activated!");
-                            resetAutoSubmitSilenceTimer(); // Start auto-submit timer when Nova activates
-                        } else {
-                            console.log("Nova deactivated!");
-                            if (autoSubmitSilenceTimerRef.current) {
-                                clearTimeout(autoSubmitSilenceTimerRef.current);
-                                autoSubmitSilenceTimerRef.current = null;
-                            }
-                        }
-                    }
-
-                    // If Nova is active and a meaningful final transcript is received, submit it
-                    if (isNovaResponding && finalTranscript.trim() && finalTranscript.toLowerCase() !== "nova" && finalTranscript.toLowerCase() !== "nova off") {
-                        if (handleSubmitRef.current) {
-                            setInput(finalTranscript);
-                            setTimeout(() => handleSubmitRef.current?.(), 0);
-                        }
-                    }
-
-                } catch (err) {
-                    console.error("Error sending transcript to backend:", err);
-                    setError("Gagal mendeteksi kata kunci.");
+                    novaActivationTimerRef.current = setTimeout(() => {
+                        console.log("5-minute timeout reached. Nova deactivated.");
+                        setIsNovaResponding(false);
+                        novaActivationTimerRef.current = null;
+                    }, 5 * 60 * 1000); // 5 minutes
                 }
             }
         };
         
         recognitionRef.current = recognitionInstance;
 
-        // Start recognition on mount
         try {
             recognitionRef.current.start();
         } catch (e) {
@@ -612,14 +548,16 @@ function App() {
                 recognitionRef.current.onresult = null;
                 recognitionRef.current.onerror = null;
                 recognitionRef.current.onend = null;
-                try { recognitionRef.current.abort(); } catch (e) { /* ignore */ } // Abort cleanly
+                try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
+            }
+            if (novaActivationTimerRef.current) {
+                clearTimeout(novaActivationTimerRef.current);
             }
         };
-    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, setIsNovaResponding]); // Added setIsNovaResponding to dependencies
+    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, isNovaResponding]);
 
 
     useEffect(() => {
-        // Setup STT AnalyserNode
         const setupSTTAnalyser = async () => {
             if (!isListening) {
                 if (sttMediaStreamRef.current) {
@@ -645,7 +583,6 @@ function App() {
                     sttMediaStreamSourceRef.current = audioContext.createMediaStreamSource(stream);
                     sttAnalyserNodeRef.current = audioContext.createAnalyser();
                     sttMediaStreamSourceRef.current.connect(sttAnalyserNodeRef.current);
-                    // sttAnalyserNodeRef.current.connect(audioContext.destination); // Connect to speakers for monitoring if needed
                 }
             } catch (err) {
                 console.error("Error accessing microphone for STT visualization:", err);
@@ -663,34 +600,8 @@ function App() {
             if (sttAnalyserNodeRef.current) sttAnalyserNodeRef.current.disconnect();
         };
     }, [isListening, ensureAudioContext]);
-
-    // --- MODIFIED HANDLETOGGLELISTEN ---
-    const handleToggleListen = async () => {
-        // This function now primarily acts as a manual trigger for input or to clear it.
-        // SpeechRecognition is always running in the background.
-
-        if (autoSubmitTimerRef.current) {
-            clearTimeout(autoSubmitTimerRef.current);
-            autoSubmitTimerRef.current = null;
-        }
-
-        // If there's input, and Nova is responding, treat this as a manual submit
-        if (input.trim() && isNovaResponding) {
-            if (handleSubmitRef.current) {
-                handleSubmitRef.current();
-            }
-        } else {
-            // Otherwise, clear the input
-            setInput("");
-            if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
-        }
-        // No need to start/stop recognitionRef.current here, it's managed by its useEffect
-    };
     
     const anyTTSSpeaking = isSpeakingTTSBrowser || isPlayingTTSFromElement;
-
-    // DEBUG LOG
-    console.log({ isListening, anyTTSSpeaking, availableVoicesCount: availableVoices.length });
 
     return (
         <div className={styles.appContainer}>
@@ -705,7 +616,7 @@ function App() {
                         <VoiceWaveform 
                             analyserNode={sttAnalyserNodeRef.current} 
                             isListening={isListening} 
-                            isSpeaking={isSpeakingTTSBrowser} // Pass isSpeaking prop
+                            isSpeaking={isSpeakingTTSBrowser}
                             width={240}     
                             height={120}     
                         />
@@ -746,32 +657,23 @@ function App() {
                 )}
 
                 <form 
-                    onSubmit={handleSubmit} 
+                    onSubmit={handleFormSubmit} 
                     className={styles.messageInputForm}
                 >
                     <div className={styles.inputFormInnerWrapper}>
                         <textarea
                             ref={textareaRef} 
-                            placeholder="Tulis pesan atau klik ikon mikrofon..." 
+                            placeholder={isNovaResponding ? "Mendengarkan..." : "Ucapkan 'Nova' atau ketik di sini..."}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isLoading && !isListening) { handleSubmit(e); } }}
+                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isLoading) { handleFormSubmit(e); } }}
                             className={styles.inputTextArea} 
                             rows={1} 
-                            disabled={isLoading || anyTTSSpeaking || !isNovaResponding} 
+                            disabled={isLoading || anyTTSSpeaking} 
                         />
                         <button
-                            type="button" 
-                            onClick={handleToggleListen}
-                            className={`${styles.iconButton} ${isListening ? styles.micButtonListening : styles.micButtonIdle} ${isNovaResponding ? styles.micButtonListening : ''}`} // Change color if Nova is responding
-                            aria-label={isListening ? "Hentikan Merekam" : "Rekam Suara"}
-                            disabled={isLoading || anyTTSSpeaking} 
-                        >
-                            {isNovaResponding ? <span>Nova Aktif</span> : <MicrophoneIcon />}
-                        </button>
-                        <button
                             type="submit" 
-                            disabled={!input.trim() || isLoading || anyTTSSpeaking || !isNovaResponding}
+                            disabled={!input.trim() || isLoading || anyTTSSpeaking}
                             className={styles.sendButton} 
                             aria-label="Kirim pesan"
                         >
@@ -781,32 +683,32 @@ function App() {
                 </form>
             </main>
             <div className={styles.logViewerContainer}>
-                    <div className={styles.logViewerHeader}>
-                        <h2>Log Backend</h2>
-                        <button 
-                            className={`${styles.iconButton} ${styles.closeLogButton}`}
-                            onClick={() => setShowLogs(false)}
-                            aria-label="Tutup Log Backend"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                                <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div className={styles.logViewerContent}>
-                        {backendLogs.length === 0 ? (
-                            <p>Tidak ada log yang tersedia.</p>
-                        ) : (
-                            backendLogs.map((log, index) => (
-                                <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
-                                    <span className={styles.logTimestamp}>{log.timestamp}</span>
-                                    <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
-                                    <span className={styles.logMessage}>{log.message}</span>
-                                </div>
-                            ))
-                        )}
-                    </div>
-            </div>
+                        <div className={styles.logViewerHeader}>
+                            <h2>Log Backend</h2>
+                            <button 
+                                className={`${styles.iconButton} ${styles.closeLogButton}`}
+                                onClick={() => {}}
+                                aria-label="Tutup Log Backend"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className={styles.logViewerContent}>
+                            {backendLogs.length === 0 ? (
+                                <p>Tidak ada log yang tersedia.</p>
+                            ) : (
+                                backendLogs.map((log, index) => (
+                                    <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
+                                        <span className={styles.logTimestamp}>{log.timestamp}</span>
+                                        <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
+                                        <span className={styles.logMessage}>{log.message}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                </div>
         </div>
     );
 }
