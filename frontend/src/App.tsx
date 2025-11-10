@@ -510,11 +510,10 @@ function App() {
             if (isPlayingTTSFromElement && audioPlayerRef.current) audioPlayerRef.current.pause();
         };
         recognitionInstance.onend = () => {
-            console.log("STT berakhir.");
+            console.log("STT berakhir. Memulai ulang...");
             setIsListening(false); // Set isListening to false when STT ends
-            // Attempt to restart recognition if it ended unexpectedly (e.g., due to timeout)
-            if (recognitionRef.current && !recognitionRef.current.abort) { // Check if not manually aborted
-                console.log("STT ended unexpectedly, attempting to restart...");
+            // Unconditionally restart recognition to keep mic always active
+            if (recognitionRef.current) {
                 recognitionRef.current.start();
             }
         };
@@ -573,15 +572,6 @@ function App() {
                         if (data.novaResponding) {
                             console.log("Nova activated!");
                             resetAutoSubmitSilenceTimer(); // Start auto-submit timer when Nova activates
-                            // If Nova is activated by voice, and there's a pending input, submit it
-                            if (finalTranscript.trim() !== "nova") { // Avoid submitting "nova" as a message
-                                if (handleSubmitRef.current) {
-                                    // Temporarily set input to finalTranscript and then submit
-                                    setInput(finalTranscript);
-                                    // Use a timeout to ensure state update for input is processed
-                                    setTimeout(() => handleSubmitRef.current?.(), 0);
-                                }
-                            }
                         } else {
                             console.log("Nova deactivated!");
                             if (autoSubmitSilenceTimerRef.current) {
@@ -590,6 +580,15 @@ function App() {
                             }
                         }
                     }
+
+                    // If Nova is active and a meaningful final transcript is received, submit it
+                    if (isNovaResponding && finalTranscript.trim() && finalTranscript.toLowerCase() !== "nova" && finalTranscript.toLowerCase() !== "nova off") {
+                        if (handleSubmitRef.current) {
+                            setInput(finalTranscript);
+                            setTimeout(() => handleSubmitRef.current?.(), 0);
+                        }
+                    }
+
                 } catch (err) {
                     console.error("Error sending transcript to backend:", err);
                     setError("Gagal mendeteksi kata kunci.");
