@@ -54,21 +54,9 @@ async function callGeminiAPI(messages, apiKey) {
         parts: [{ text: msg.content }]
     }));
 
-    // Tambahkan system instruction sebagai pesan user pertama jika belum ada
-    const systemInstruction = "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas dalam Bahasa Indonesia.";
-    if (!formattedMessages[0] || formattedMessages[0].role !== 'user' || !formattedMessages[0].parts[0].text.includes(systemInstruction)) {
-        formattedMessages.unshift({
-            role: 'user',
-            parts: [{ text: systemInstruction }]
-        });
-        // Tambahkan respons model dummy untuk menjaga peran bergantian
-        formattedMessages.unshift({
-            role: 'model',
-            parts: [{ text: "Baik, saya akan menjawab pertanyaan Anda sebagai asisten AI yang membantu dan ramah dalam Bahasa Indonesia." }]
-        });
-    }
     // Pastikan pesan terakhir dari 'user' untuk memicu generasi
-    if (formattedMessages[formattedMessages.length - 1].role === 'model') {
+    // Jika pesan terakhir dari 'model', tambahkan pesan user dummy
+    if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'model') {
         formattedMessages.push({
             role: 'user',
             parts: [{ text: "Lanjutkan percakapan." }] // Pesan dummy untuk memicu generasi
