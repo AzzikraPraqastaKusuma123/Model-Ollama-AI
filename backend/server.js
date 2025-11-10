@@ -166,7 +166,7 @@ app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
     const ollamaModel = req.body.model || "llama3";
-    const OLLAMA_TIMEOUT = 30000; 
+    const OLLAMA_TIMEOUT = 60000; 
     const HF_ZEPHYR_TIMEOUT = 25000; 
     const HF_LLAMA3_TIMEOUT = 45000;  
 
@@ -182,7 +182,7 @@ app.post('/api/chat', async (req, res) => {
 
     try {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
-        console.log(`   Mencoba model Ollama: ${ollamaModel} (Timeout: ${OLLAMA_TIMEOUT / 1000}s)...`);
+        console.log(`   Mencoba model Ollama: ${ollamaModel} (Timeout: ${OLLAMA_TIMEOUT / 1000 === 60 ? '1 menit' : `${OLLAMA_TIMEOUT / 1000}s`})...`);
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
         const ollamaOperation = ollama.chat({ model: ollamaModel, messages: ollamaChatMessages, stream: false });
         const ollamaResponse = await Promise.race([
