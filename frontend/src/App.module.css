@@ -19,7 +19,7 @@
   border-bottom: 1px solid var(--border);
   background-color: var(--background);
   text-align: center;
-  position: relative; /* Changed to relative for absolute child positioning */
+  position: sticky; /* Reverted to sticky */
   top: 0;
   z-index: 10;
   display: flex;
@@ -202,19 +202,17 @@
 }
 
 /* Waveform & Other styles */
-.ttsWaveformContainer {
-  /* Re-enable and integrate into header */
+.ttsWaveformDisplayContainer {
   display: flex;
   justify-content: center;
   align-items: center;
-  position: absolute; /* Position relative to appHeader */
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none; /* Allow clicks to pass through */
-  opacity: 0.15; /* Subtle background effect */
-  overflow: hidden;
+  padding: 0.5rem 1rem;
+  background-color: var(--background);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 60px; /* Adjust based on header height */
+  z-index: 9;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .waveformContainerRadial {

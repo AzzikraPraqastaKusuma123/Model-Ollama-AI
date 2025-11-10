@@ -682,17 +682,19 @@ function App() {
             <audio ref={audioPlayerRef} style={{ display: 'none' }} crossOrigin="anonymous" />
             <header className={styles.appHeader}>
                 <h1>Asisten AI Cerdas</h1>
-                <div className={styles.ttsWaveformContainer}>
-                    <RadialPulseWaveform 
-                        isActive={isSpeakingTTSBrowser} // isActive based on browser TTS
-                        width={140}     
-                        height={50}     
-                        colorScheme="vibrant" 
-                    />
-                </div>
             </header>
 
             <main className={styles.mainContent}>
+                {isSpeakingTTSBrowser && (
+                    <div className={styles.ttsWaveformDisplayContainer}>
+                        <RadialPulseWaveform 
+                            isActive={isSpeakingTTSBrowser} 
+                            width={200}     
+                            height={60}     
+                            colorScheme="vibrant" 
+                        />
+                    </div>
+                )}
                 <div className={styles.messagesListContainer}>
                     {messages.map((message, index) => (
                         <MessageCard

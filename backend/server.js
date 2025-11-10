@@ -46,27 +46,44 @@ async function callGeminiAPI(messages, apiKey) {
         throw new Error("GEMINI_API_KEY tidak ditemukan di environment variables.");
     }
 
-    // Ambil hanya pesan terakhir dari user untuk diagnosis
-    const lastUserMessage = messages.filter(msg => msg.role === 'user').pop();
+    // Format pesan untuk Gemini API
+    // Gemini API mengharapkan peran user/model bergantian.
+    // Pesan pertama harus selalu dari 'user'.
+    let formattedMessages = messages.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+    }));
 
-    if (!lastUserMessage) {
-        throw new Error("Tidak ada pesan user yang ditemukan untuk dikirim ke Gemini.");
+    // Tambahkan instruksi sistem sebagai pesan pertama dari 'user'
+    const systemInstruction = "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas, ringkas, dan dalam Bahasa Indonesia yang alami. Hindari menyebutkan tanda baca secara eksplisit. Gunakan tanda baca untuk jeda dan intonasi yang tepat.";
+    formattedMessages.unshift({
+        role: 'user',
+        parts: [{ text: systemInstruction }]
+    });
+    // Tambahkan respons model dummy untuk menjaga peran bergantian setelah instruksi sistem
+    formattedMessages.unshift({
+        role: 'model',
+        parts: [{ text: "Baik, saya akan menjawab pertanyaan Anda sebagai asisten AI yang membantu dan ramah dalam Bahasa Indonesia." }]
+    });
+
+
+    // Pastikan pesan terakhir dari 'user' untuk memicu generasi
+    // Jika pesan terakhir dari 'model', tambahkan pesan user dummy
+    if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'model') {
+        formattedMessages.push({
+            role: 'user',
+            parts: [{ text: "Lanjutkan percakapan." }] // Pesan dummy untuk memicu generasi
+        });
     }
 
-    const formattedContent = [{
-        role: 'user',
-        parts: [{ text: lastUserMessage.content }]
-    }];
-
     try {
-        // Menggunakan model gemini-2.0-flash sesuai dengan curl yang diberikan
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                contents: formattedContent, // Kirim hanya pesan terakhir
+                contents: formattedMessages, // Kirim semua pesan yang sudah diformat
                 generationConfig: {
                     temperature: 0.7,
                     topP: 0.9,
@@ -88,7 +105,7 @@ async function callGeminiAPI(messages, apiKey) {
             throw new Error("Struktur respons Gemini tidak valid atau tidak ada konten.");
         }
 
-        return { message: { content: geminiContent }, model: "Gemini-2.0-Flash" }; // Update model name here
+        return { message: { content: geminiContent }, model: "Gemini-2.0-Flash" };
 
     } catch (error) {
         console.error("Error saat memanggil Gemini API:", error.message);
@@ -139,7 +156,7 @@ async function processTextInChunks(text, sourceLang, targetLang, maxChunkLength)
             } else if (data.matches?.[0]?.translation) { 
                  translatedParts.push(data.matches[0].translation);
             } else {
-                console.warn(`MyMemory tidak mengembalikan terjemahan valid untuk bagian: ${detailError || JSON.stringify(data)}. Bagian asli dipertahankan.`);
+                console.warn(`MyMemory tidak mengembalikan terjemahan valid untuk bagian: ${detailError || JSON.stringify(data)}. Menggunakan teks asli.`);
                 translatedParts.push(chunkToSend); 
             }
         } catch (chunkError) {
@@ -209,7 +226,13 @@ app.post('/api/chat', async (req, res) => {
         if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
         
         console.log(`   Memulai balapan model: Gemini-2.0-Flash vs ${speedModel}...`);
+        
         const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
+        // Tambahkan instruksi sistem untuk Ollama
+        ollamaChatMessages.unshift({
+            role: 'system',
+            content: "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas, ringkas, dan dalam Bahasa Indonesia yang alami. Hindari menyebutkan tanda baca secara eksplisit. Gunakan tanda baca untuk jeda dan intonasi yang tepat."
+        });
 
         // Mulai kedua operasi secara bersamaan
         const geminiOperation = callGeminiAPI(messages, GEMINI_API_KEY); // Panggil Gemini
