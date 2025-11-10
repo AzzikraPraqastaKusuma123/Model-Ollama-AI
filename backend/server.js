@@ -165,7 +165,7 @@ async function translateTextWithMyMemory(textToTranslate, sourceLang = 'en', tar
 app.post('/api/chat', async (req, res) => {
     console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
-    const ollamaModel = req.body.model || "tinyllama";
+    const ollamaModel = req.body.model || "llama3";
     const OLLAMA_TIMEOUT = 30000; 
     const HF_ZEPHYR_TIMEOUT = 25000; 
     const HF_LLAMA3_TIMEOUT = 45000;  
