@@ -3,15 +3,22 @@ import { MessageCard } from "./components/MessageCard";
 import styles from './App.module.css';
 
 // Definisi Global Type untuk Web Speech API
-// ... (definisi tipe tetap sama) ...
+// Ini diperlukan karena Web Speech API mungkin belum sepenuhnya distandarisasi di semua lingkungan TypeScript.
 interface SpeechRecognitionEventMap {
     "audiostart": Event; "audioend": Event; "end": Event; "error": SpeechRecognitionErrorEvent;
     "nomatch": SpeechRecognitionEvent; "result": SpeechRecognitionEvent; "soundstart": Event;
     "soundend": Event; "speechstart": Event; "speechend": Event; "start": Event;
 }
 interface SpeechRecognition extends EventTarget {
-    grammars: SpeechGrammarList; lang: string; continuous: boolean; interimResults: boolean;
-    maxAlternatives: number; serviceURI: string; start(): void; stop(): void; abort(): void;
+    grammars: SpeechGrammarList;
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    maxAlternatives: number;
+    serviceURI: string;
+    start(): void;
+    stop(): void;
+    abort(): void;
     onaudiostart: ((this: SpeechRecognition, ev: Event) => any) | null;
     onaudioend: ((this: SpeechRecognition, ev: Event) => any) | null;
     onend: ((this: SpeechRecognition, ev: Event) => any) | null;
@@ -28,7 +35,9 @@ interface SpeechRecognition extends EventTarget {
     removeEventListener<K extends keyof SpeechRecognitionEventMap>(type: K, listener: (this: SpeechRecognition, ev: SpeechRecognitionEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
 }
-interface SpeechRecognitionStatic { new(): SpeechRecognition; }
+interface SpeechRecognitionStatic {
+    new(): SpeechRecognition;
+}
 declare global {
     interface Window {
         SpeechRecognition: SpeechRecognitionStatic;
@@ -36,14 +45,49 @@ declare global {
         AudioContext: typeof AudioContext;
         webkitAudioContext: typeof AudioContext;
     }
-    interface SpeechGrammarList { readonly length: number; item(index: number): SpeechGrammar; addFromURI(src: string, weight?: number): void; addFromString(string: string, weight?: number): void; [index: number]: SpeechGrammar; }
-    interface SpeechGrammar { src: string; weight: number; }
-    interface SpeechRecognitionResult { readonly length: number; item(index: number): SpeechRecognitionAlternative; readonly isFinal: boolean; [index: number]: SpeechRecognitionAlternative; }
-    interface SpeechRecognitionAlternative { readonly transcript: string; readonly confidence: number; }
-    interface SpeechRecognitionResultList { readonly length: number; item(index: number): SpeechRecognitionResult; [index: number]: SpeechRecognitionResult; }
-    interface SpeechRecognitionEvent extends Event { readonly resultIndex: number; readonly results: SpeechRecognitionResultList; }
-    type SpeechRecognitionErrorCode = | "no-speech" | "aborted" | "audio-capture" | "network" | "not-allowed" | "service-not-allowed" | "bad-grammar" | "language-not-supported";
-    interface SpeechRecognitionErrorEvent extends Event { readonly error: SpeechRecognitionErrorCode; readonly message: string; }
+    interface SpeechGrammarList {
+        readonly length: number;
+        item(index: number): SpeechGrammar;
+        addFromURI(src: string, weight?: number): void;
+        addFromString(string: string, weight?: number): void;
+        [index: number]: SpeechGrammar;
+    }
+    interface SpeechGrammar {
+        src: string;
+        weight: number;
+    }
+    interface SpeechRecognitionResult {
+        readonly length: number;
+        item(index: number): SpeechRecognitionAlternative;
+        readonly isFinal: boolean;
+        [index: number]: SpeechRecognitionResult;
+    }
+    interface SpeechRecognitionAlternative {
+        readonly transcript: string;
+        readonly confidence: number;
+    }
+    interface SpeechRecognitionResultList {
+        readonly length: number;
+        item(index: number): SpeechRecognitionResult;
+        [index: number]: SpeechRecognitionResult;
+    }
+    interface SpeechRecognitionEvent extends Event {
+        readonly resultIndex: number;
+        readonly results: SpeechRecognitionResultList;
+    }
+    type SpeechRecognitionErrorCode =
+        | "no-speech"
+        | "aborted"
+        | "audio-capture"
+        | "network"
+        | "not-allowed"
+        | "service-not-allowed"
+        | "bad-grammar"
+        | "language-not-supported";
+    interface SpeechRecognitionErrorEvent extends Event {
+        readonly error: SpeechRecognitionErrorCode;
+        readonly message: string;
+    }
 }
 
 
@@ -53,7 +97,7 @@ type Message = {
     content: string;
     timestamp: string;
     provider?: string;
-    audioData?: any;
+    audioData?: any; // Untuk data audio TTS jika ada
 };
 
 // Komponen Ikon
@@ -71,16 +115,15 @@ const MicrophoneIcon = () => (
     </svg>
 );
 
-// Komponen VoiceWaveform
-// ... (definisi komponen tetap sama) ...
+// Komponen VoiceWaveform (untuk STT)
 interface VoiceWaveformProps {
     analyserNode: AnalyserNode | null;
-    isListening: boolean; 
+    isListening: boolean;
     width?: number;
     height?: number;
 }
 const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
-    analyserNode, isListening, width = 280, height = 120, // Default untuk STT di bawah
+    analyserNode, isListening, width = 280, height = 120,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationFrameIdRef = useRef<number | null>(null);
@@ -172,6 +215,119 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
     return <canvas ref={canvasRef} width={width} height={height} className={styles.voiceWaveformCanvasRadial} />;
 };
 
+// Komponen RadialPulseWaveform (untuk TTS di header)
+interface RadialPulseWaveformProps {
+    isActive: boolean;
+    width?: number;
+    height?: number;
+    colorScheme?: 'vibrant' | 'subtle';
+}
+const RadialPulseWaveform: React.FC<RadialPulseWaveformProps> = ({
+    isActive, width = 100, height = 30, colorScheme = 'vibrant'
+}) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const animationFrameIdRef = useRef<number | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const dataArrayRef = useRef<Uint8Array | null>(null);
+
+    const BAR_COUNT = 20;
+    const BAR_SPACING = 2;
+    const BAR_WIDTH = 2;
+
+    const getColors = (scheme: string) => {
+        if (scheme === 'subtle') {
+            return {
+                base: 'rgba(100, 100, 100, 0.3)',
+                active: 'rgba(150, 150, 150, 0.6)',
+            };
+        }
+        return {
+            base: 'rgba(74, 222, 128, 0.4)', // emerald-400
+            active: 'rgba(52, 211, 153, 0.8)', // emerald-500
+        };
+    };
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        const colors = getColors(colorScheme);
+
+        const draw = () => {
+            animationFrameIdRef.current = requestAnimationFrame(draw);
+            context.clearRect(0, 0, width, height);
+
+            if (isActive && analyserNodeRef.current && dataArrayRef.current) {
+                analyserNodeRef.current.getByteFrequencyData(dataArrayRef.current);
+                const dataArray = dataArrayRef.current;
+                const bufferLength = analyserNodeRef.current.frequencyBinCount;
+
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+
+                const maxBarHeight = height * 0.8;
+                const minBarHeight = height * 0.1;
+
+                for (let i = 0; i < BAR_COUNT; i++) {
+                    const x = i * (BAR_WIDTH + BAR_SPACING);
+                    const normalizedIndex = Math.floor((i / BAR_COUNT) * bufferLength);
+                    const barHeight = Math.max(minBarHeight, (dataArray[normalizedIndex] / 255) * maxBarHeight);
+                    const y = (height - barHeight) / 2;
+
+                    context.fillStyle = colors.active;
+                    context.fillRect(x, y, BAR_WIDTH, barHeight);
+                }
+            } else {
+                // Draw static bars when inactive or no audio data
+                const staticBarHeight = height * 0.2;
+                const staticY = (height - staticBarHeight) / 2;
+                for (let i = 0; i < BAR_COUNT; i++) {
+                    const x = i * (BAR_WIDTH + BAR_SPACING);
+                    context.fillStyle = colors.base;
+                    context.fillRect(x, staticY, BAR_WIDTH, staticBarHeight);
+                }
+            }
+        };
+
+        draw();
+
+        return () => {
+            if (animationFrameIdRef.current) {
+                cancelAnimationFrame(animationFrameIdRef.current);
+            }
+        };
+    }, [isActive, width, height, colorScheme]);
+
+    // Initialize AudioContext and AnalyserNode if not already done
+    useEffect(() => {
+        if (isActive && !audioContextRef.current) {
+            try {
+                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                analyserNodeRef.current = audioContextRef.current.createAnalyser();
+                analyserNodeRef.current.fftSize = 256;
+                dataArrayRef.current = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
+
+                // Connect to a dummy source or global audio output if needed for visualization
+                // For TTS, this would typically connect to the output of the SpeechSynthesisUtterance
+                // or an HTMLAudioElement playing the TTS audio.
+                // For now, it will just show static bars if no audio is actively connected.
+            } catch (e) {
+                console.error("Failed to initialize AudioContext for RadialPulseWaveform:", e);
+            }
+        }
+    }, [isActive]);
+
+
+    return <canvas ref={canvasRef} width={width} height={height} />;
+};
+
 
 const getCurrentTimestamp = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -220,7 +376,14 @@ function App() {
     }, []);
 
     const ensureAudioContext = useCallback(async () => {
-        // ... (no changes)
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        // Resume context if it's suspended (e.g., after user interaction)
+        if (audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+        }
+        return audioContextRef.current;
     }, []);
 
     const playSound = useCallback(async (dataOrText: string | any) => {
@@ -416,11 +579,21 @@ function App() {
     
     const anyTTSSpeaking = isSpeakingTTSBrowser || isPlayingTTSFromElement;
 
+    console.log({ isListening, anyTTSSpeaking }); // DEBUG LOG
+
     return (
         <div className={styles.appContainer}>
             <audio ref={audioPlayerRef} style={{ display: 'none' }} crossOrigin="anonymous" />
             <header className={styles.appHeader}>
                 <h1>Asisten AI Cerdas</h1>
+                <div className={styles.ttsWaveformContainer}>
+                    <RadialPulseWaveform 
+                        isActive={true} 
+                        width={140}     
+                        height={50}     
+                        colorScheme="vibrant" 
+                    />
+                </div>
             </header>
 
             <main className={styles.mainContent}>

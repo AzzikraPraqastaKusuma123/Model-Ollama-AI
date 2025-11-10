@@ -19,7 +19,7 @@
   border-bottom: 1px solid var(--border);
   background-color: var(--background);
   text-align: center;
-  position: sticky;
+  position: relative; /* Changed to relative for absolute child positioning */
   top: 0;
   z-index: 10;
   display: flex;
@@ -203,7 +203,18 @@
 
 /* Waveform & Other styles */
 .ttsWaveformContainer {
-  display: none; /* Still hidden as it's for TTS playback, not STT input */
+  /* Re-enable and integrate into header */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute; /* Position relative to appHeader */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Allow clicks to pass through */
+  opacity: 0.15; /* Subtle background effect */
+  overflow: hidden;
 }
 
 .waveformContainerRadial {
@@ -211,20 +222,23 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 1rem 0;
-  margin: 0 auto 1rem auto; /* Centered with bottom margin */
+  padding: 1.5rem 0; /* Increased padding */
+  margin: 0 auto 1.5rem auto; /* Centered with bottom margin */
   width: 90%;
-  max-width: 320px;
+  max-width: 360px; /* Slightly wider */
   background-color: var(--card);
-  border-radius: 1rem;
+  border-radius: 1.5rem; /* More rounded */
   border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2); /* Stronger shadow */
+  animation: fadeInScale 0.3s ease-out; /* Simple entrance animation */
 }
 
 .listeningText {
-  color: var(--muted-foreground);
-  font-size: 0.875rem;
-  margin-top: 0.75rem;
-  font-weight: 500;
+  color: var(--primary); /* Use primary color for emphasis */
+  font-size: 1rem; /* Slightly larger */
+  margin-top: 1rem; /* More space */
+  font-weight: 600; /* Bolder */
+  animation: pulseText 1.5s infinite ease-in-out; /* Pulsing animation */
 }
 
 /* Style for the mic button when it contains text e.g. "Stop" */
@@ -236,4 +250,15 @@
 .micButtonWithText span {
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulseText {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
