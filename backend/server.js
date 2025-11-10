@@ -175,11 +175,15 @@ async function translateTextWithMyMemory(textToTranslate, sourceLang = 'en', tar
             } else if (data.matches?.[0]?.translation) { 
                 return data.matches[0].translation;
             } else {
-                console.warn(`MyMemory tidak mengembalikan terjemahan valid (permintaan tunggal): ${detailError || JSON.stringify(data)}`);
+                console.warn(`MyMemory tidak mengembalikan terjemahan valid (permintaan tunggal): ${detailError || JSON.stringify(data)}. Menggunakan teks asli.`);
                 return textToTranslate; 
             }
         } catch (error) {
-            console.error("Error saat menerjemahkan dengan MyMemory (permintaan tunggal):", error.message);
+            if (error.message.includes("429 Too Many Requests")) {
+                console.warn("MyMemory API: Kuota terjemahan gratis harian telah habis. Silakan coba lagi besok atau kunjungi MyMemory untuk opsi berbayar.");
+            } else {
+                console.error("Error saat menerjemahkan dengan MyMemory (permintaan tunggal):", error.message);
+            }
             return textToTranslate; 
         }
     } else {
