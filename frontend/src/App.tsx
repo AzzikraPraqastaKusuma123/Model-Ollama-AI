@@ -387,11 +387,64 @@ function App() {
     }, []);
 
     const playSound = useCallback(async (dataOrText: string | any) => {
-        // ... (no changes)
-    }, [availableVoices, messages, isListening, ensureAudioContext]);
+        const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
+        if (!textToSpeak) return;
+
+        // Stop any ongoing browser TTS
+        if (typeof speechSynthesis !== 'undefined') {
+            speechSynthesis.cancel();
+        }
+        setIsSpeakingTTSBrowser(true);
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'id-ID'; // Set language to Indonesian
+
+        // Try to find an Indonesian voice
+        const voices = window.speechSynthesis.getVoices();
+        const indonesianVoice = voices.find(voice => voice.lang === 'id-ID');
+        if (indonesianVoice) {
+            utterance.voice = indonesianVoice;
+        } else {
+            console.warn("Indonesian voice not found, using default.");
+        }
+
+        utterance.onend = () => {
+            setIsSpeakingTTSBrowser(false);
+            console.log("Browser TTS finished speaking.");
+        };
+        utterance.onerror = (event) => {
+            setIsSpeakingTTSBrowser(false);
+            console.error("Browser TTS error:", event.error);
+        };
+
+        window.speechSynthesis.speak(utterance);
+
+        // Connect AnalyserNode for TTS waveform visualization
+        const audioContext = await ensureAudioContext();
+        if (audioContext && !ttsAudioElementSourceRef.current) {
+            // This part is tricky with window.speechSynthesis as it doesn't expose an audio source node directly.
+            // The RadialPulseWaveform for TTS in the header will show static bars or react to other audio.
+            // For actual TTS visualization, a different approach (e.g., using a Web Audio API based TTS library) is needed.
+            // For now, we'll just rely on the isActive prop to show some animation.
+        }
+
+    }, [ensureAudioContext]);
 
     useEffect(() => {
-        // ... (no changes to voice list effect)
+        // Load voices when component mounts
+        const loadVoices = () => {
+            const voices = window.speechSynthesis.getVoices();
+            setAvailableVoices(voices);
+        };
+
+        // Some browsers load voices asynchronously
+        if (typeof window.speechSynthesis !== 'undefined') {
+            if (window.speechSynthesis.getVoices().length > 0) {
+                loadVoices();
+            } else {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
     }, []);
 
     useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
@@ -537,7 +590,49 @@ function App() {
     }, [isSpeakingTTSBrowser, isPlayingTTSFromElement]); // Dependencies managed
 
     useEffect(() => {
-        // ... (no changes to STT visualization effect)
+        // Setup STT AnalyserNode
+        const setupSTTAnalyser = async () => {
+            if (!isListening) {
+                if (sttMediaStreamRef.current) {
+                    sttMediaStreamRef.current.getTracks().forEach(track => track.stop());
+                    sttMediaStreamRef.current = null;
+                }
+                if (sttMediaStreamSourceRef.current) {
+                    sttMediaStreamSourceRef.current.disconnect();
+                    sttMediaStreamSourceRef.current = null;
+                }
+                if (sttAnalyserNodeRef.current) {
+                    sttAnalyserNodeRef.current.disconnect();
+                    sttAnalyserNodeRef.current = null;
+                }
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                sttMediaStreamRef.current = stream;
+                const audioContext = await ensureAudioContext();
+                if (audioContext) {
+                    sttMediaStreamSourceRef.current = audioContext.createMediaStreamSource(stream);
+                    sttAnalyserNodeRef.current = audioContext.createAnalyser();
+                    sttMediaStreamSourceRef.current.connect(sttAnalyserNodeRef.current);
+                    // sttAnalyserNodeRef.current.connect(audioContext.destination); // Connect to speakers for monitoring if needed
+                }
+            } catch (err) {
+                console.error("Error accessing microphone for STT visualization:", err);
+                setError("Gagal mengakses mikrofon untuk visualisasi STT.");
+            }
+        };
+
+        setupSTTAnalyser();
+
+        return () => {
+            if (sttMediaStreamRef.current) {
+                sttMediaStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+            if (sttMediaStreamSourceRef.current) sttMediaStreamSourceRef.current.disconnect();
+            if (sttAnalyserNodeRef.current) sttAnalyserNodeRef.current.disconnect();
+        };
     }, [isListening, ensureAudioContext]);
 
     // --- MODIFIED HANDLETOGGLELISTEN ---
@@ -579,7 +674,8 @@ function App() {
     
     const anyTTSSpeaking = isSpeakingTTSBrowser || isPlayingTTSFromElement;
 
-    console.log({ isListening, anyTTSSpeaking }); // DEBUG LOG
+    // DEBUG LOG
+    console.log({ isListening, anyTTSSpeaking, availableVoicesCount: availableVoices.length });
 
     return (
         <div className={styles.appContainer}>
@@ -588,7 +684,7 @@ function App() {
                 <h1>Asisten AI Cerdas</h1>
                 <div className={styles.ttsWaveformContainer}>
                     <RadialPulseWaveform 
-                        isActive={true} 
+                        isActive={isSpeakingTTSBrowser} // isActive based on browser TTS
                         width={140}     
                         height={50}     
                         colorScheme="vibrant" 
