@@ -102,8 +102,8 @@ type Message = {
 
 // Komponen Ikon
 const SendIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+      <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
     </svg>
 );
 
@@ -243,14 +243,14 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
             if (canvasRef.current) { const ctx = canvasRef.current.getContext('2d'); ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }
         };
     }, [isListening, isSpeaking, analyserNode, width, height, NUM_BARS, CENTER_ORB_MIN_RADIUS, CENTER_ORB_MAX_RADIUS, RING_RADIUS, MAX_BAR_LENGTH, BAR_WIDTH, BAR_COLORS_BASE, CENTER_MAIN_COLOR_BASE, CENTER_GLOW_COLOR_BASE, baseWidthForScaling]);
-    return <canvas ref={canvasRef} width={width} height={height} className={styles.voiceWaveformCanvasRadial} />;
+    return <canvas ref={canvasRef} width={width} height={height} />;
 };
 
 
 
 
 const getCurrentTimestamp = () => {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
 function App() {
@@ -267,7 +267,6 @@ function App() {
     const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]);
     const [isNovaResponding, setIsNovaResponding] = useState<boolean>(false);
 
-    const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesContainerRef = useRef<null | HTMLDivElement>(null);
     const textareaRef = useRef<null | HTMLTextAreaElement>(null);
     const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -457,10 +456,8 @@ function App() {
 
     useEffect(() => {
         if (messagesContainerRef.current) {
-            const { scrollHeight, clientHeight, scrollTop } = messagesContainerRef.current;
-            if (scrollHeight - clientHeight <= scrollTop + 100) {
-                 messagesContainerRef.current.scrollTop = scrollHeight;
-            }
+            const { scrollHeight } = messagesContainerRef.current;
+            messagesContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
         }
     }, [messages]);
 
@@ -702,55 +699,76 @@ function App() {
 
     return (
         <div className={styles.appContainer}>
-            <audio ref={audioPlayerRef} style={{ display: 'none' }} crossOrigin="anonymous" />
-            <header className={styles.appHeader}>
-                <h1>Asisten AI Cerdas</h1>
-            </header>
-
-            <main className={styles.mainContent}>
-                {(isListening || isSpeakingTTSBrowser) && (
-                    <div className={styles.unifiedWaveformDisplayContainer}>
-                        <VoiceWaveform 
-                            analyserNode={sttAnalyserNodeRef.current} 
-                            isListening={isListening} 
-                            isSpeaking={isSpeakingTTSBrowser}
-                            width={240}     
-                            height={120}     
-                        />
-                        <p className={styles.waveformStatusText}>
-                            {isNovaResponding ? "Nova Aktif: Mendengarkan..." : "Nova Tidak Aktif: Ucapkan 'Nova'..."}
-                        </p>
-                    </div>
-                )}
-                <div ref={messagesContainerRef} className={styles.messagesListContainer}>
-                    {messages.map((message, index) => (
-                        <MessageCard
-                            key={index} 
-                            role={message.role} 
-                            message={message.content}
-                            timestamp={message.timestamp}
-                            onPlaySound={playSound}
-                            audioData={message.audioData}
-                            provider={message.provider}
-                        />
-                    ))}
-                    {isLoading && (
-                        <div className={styles.loadingIndicatorContainer}>
-                            <div className={styles.loadingIndicatorBubble}>
-                                <div className={styles.loadingDots}>
-                                    <span className="sr-only">Mengetik...</span>
-                                    <div></div> <div></div> <div></div>
-                                </div>
+            {/* Log Viewer (Sidebar) */}
+            <div className={styles.logViewerContainer}>
+                <div className={styles.logViewerHeader}>
+                    <h2>Backend Log</h2>
+                </div>
+                <div className={styles.logViewerContent}>
+                    {backendLogs.length === 0 ? (
+                        <p>No logs available.</p>
+                    ) : (
+                        backendLogs.map((log, index) => (
+                            <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
+                                <span className={styles.logTimestamp}>{log.timestamp}</span>
+                                <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
+                                <span className={styles.logMessage}>{log.message}</span>
                             </div>
-                        </div>
+                        ))
                     )}
                 </div>
+            </div>
 
-                {error && !isLoading && (
-                       <div className={styles.errorMessageContainer}>
-                           <strong>Error:</strong> {error}
-                       </div>
-                )}
+            {/* Main Chat Panel */}
+            <div className={styles.chatPanel}>
+                <header className={styles.appHeader}>
+                    <h1>Nova AI Assistant</h1>
+                </header>
+
+                <main className={styles.mainContent}>
+                    {(isListening || isSpeakingTTSBrowser) && (
+                        <div className={styles.unifiedWaveformDisplayContainer}>
+                            <VoiceWaveform 
+                                analyserNode={sttAnalyserNodeRef.current} 
+                                isListening={isListening} 
+                                isSpeaking={isSpeakingTTSBrowser}
+                                width={240}     
+                                height={100}     
+                            />
+                            <p className={styles.waveformStatusText}>
+                                {isNovaResponding ? "Nova is active: Listening..." : (isListening ? "Say 'Nova' to start..." : "Speaking...")}
+                            </p>
+                        </div>
+                    )}
+                    <div ref={messagesContainerRef} className={styles.messagesListContainer}>
+                        {messages.map((message, index) => (
+                            <MessageCard
+                                key={index} 
+                                role={message.role} 
+                                message={message.content}
+                                timestamp={message.timestamp}
+                                onPlaySound={playSound}
+                                audioData={message.audioData}
+                                provider={message.provider}
+                            />
+                        ))}
+                        {isLoading && (
+                            <div className={styles.loadingIndicatorContainer}>
+                                <div className={styles.loadingIndicatorBubble}>
+                                    <div className={styles.loadingDots}>
+                                        <span className="sr-only">Typing...</span>
+                                        <div></div> <div></div> <div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {error && !isLoading && (
+                        <div className={styles.errorMessageContainer}>
+                            <strong>Error:</strong> {error}
+                        </div>
+                    )}
+                </main>
 
                 <form 
                     onSubmit={handleFormSubmit} 
@@ -759,7 +777,7 @@ function App() {
                     <div className={styles.inputFormInnerWrapper}>
                         <textarea
                             ref={textareaRef} 
-                            placeholder={isNovaResponding ? "Mendengarkan..." : "Ucapkan 'Nova' atau ketik di sini..."}
+                            placeholder={isNovaResponding ? "Listening..." : "Say 'Nova' or type here..."}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isLoading) { handleFormSubmit(e); } }}
@@ -771,40 +789,13 @@ function App() {
                             type="submit" 
                             disabled={!input.trim() || isLoading || anyTTSSpeaking}
                             className={styles.sendButton} 
-                            aria-label="Kirim pesan"
+                            aria-label="Send message"
                         >
                             <SendIcon />
                         </button>
                     </div>
                 </form>
-            </main>
-            <div className={styles.logViewerContainer}>
-                        <div className={styles.logViewerHeader}>
-                            <h2>Log Backend</h2>
-                            <button 
-                                className={`${styles.iconButton} ${styles.closeLogButton}`}
-                                onClick={() => {}}
-                                aria-label="Tutup Log Backend"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div className={styles.logViewerContent}>
-                            {backendLogs.length === 0 ? (
-                                <p>Tidak ada log yang tersedia.</p>
-                            ) : (
-                                backendLogs.map((log, index) => (
-                                    <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
-                                        <span className={styles.logTimestamp}>{log.timestamp}</span>
-                                        <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
-                                        <span className={styles.logMessage}>{log.message}</span>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                </div>
+            </div>
         </div>
     );
 }

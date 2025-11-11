@@ -1,57 +1,68 @@
-/* Using Tailwind directives to include base styles, components, and utilities */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* frontend/src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
 
-/* Define CSS variables for our dark theme color palette for consistency */
+/*
+ * Modern Dark/Light Theme Color Palette
+ * Inspired by professional IDEs and modern design systems.
+ */
 :root {
-  --background: #0f172a; /* slate-900 */
-  --foreground: #f8fafc; /* slate-50 */
-  --card: #1e293b; /* slate-800 */
-  --card-foreground: #f1f5f9; /* slate-100 */
-  --primary: #38bdf8; /* lightBlue-400 */
-  --primary-foreground: #0f172a; /* slate-900 */
-  --muted: #334155; /* slate-700 */
-  --muted-foreground: #94a3b8; /* slate-400 */
-  --accent: #0e7490; /* cyan-700 */
-  --border: #334155; /* slate-700 */
-  --input: #1e293b; /* slate-800 */
-  --ring: #38bdf8; /* lightBlue-400 */
+  --background: hsl(222.2 84.2% 4.9%);
+  --foreground: hsl(210 40% 98%);
+  
+  --card: hsl(222.2 84.2% 7.9%);
+  --card-foreground: hsl(210 40% 98%);
+  
+  --muted: hsl(217.2 32.6% 17.5%);
+  --muted-foreground: hsl(215 20.2% 65.1%);
+  
+  --primary: hsl(200, 95%, 55%); /* Brighter, more vibrant blue */
+  --primary-foreground: hsl(222.2 47.4% 11.2%);
+
+  --accent: hsl(170, 80%, 45%); /* A teal/cyan accent */
+
+  --border: hsl(217.2 32.6% 17.5%);
+  --input: hsl(217.2 32.6% 17.5%);
+  --ring: hsl(200, 95%, 65%);
+
+  --radius: 0.75rem;
 }
 
-/* Apply base styles to the body */
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--background);
   color: var(--foreground);
   line-height: 1.6;
-  overflow-x: hidden;
+  overflow: hidden; /* Prevent body scroll */
 }
 
-/* Modern, styled scrollbar for a more integrated look */
+* {
+  box-sizing: border-box;
+}
+
+/* Modern, styled scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
-
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--background);
 }
-
 ::-webkit-scrollbar-thumb {
   background-color: var(--muted);
-  border-radius: 20px;
-  border: 2px solid var(--background);
+  border-radius: 10px;
+  border: 3px solid var(--background);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #475569; /* slate-600 */
+  background-color: var(--muted-foreground);
 }
 
-/* Style for screen-reader only text, useful for accessibility */
+/* Base styles for a screen-reader only element */
 .sr-only {
   position: absolute;
   width: 1px;
