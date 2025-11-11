@@ -408,11 +408,6 @@ function App() {
     // Speech Queue Processor
     useEffect(() => {
         if (speechQueue.length > 0 && !isSpeakingTTSBrowser && availableVoices.length > 0) {
-            // Defensive cleanup
-            if (typeof speechSynthesis !== 'undefined') {
-                speechSynthesis.cancel();
-            }
-
             const textToSpeak = speechQueue[0];
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
             utterance.lang = 'id-ID';
