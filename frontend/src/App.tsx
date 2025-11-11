@@ -483,7 +483,13 @@ function App() {
         const trimmedInput = prompt.trim();
         if (trimmedInput && !isLoading) {
             const newMessage: Message = { role: "user", content: trimmedInput, timestamp: getCurrentTimestamp() };
-            setMessages((prevMessages) => [...prevMessages, newMessage]);
+            const assistantMessagePlaceholder: Message = { 
+                role: "assistant", 
+                content: "", // Start with empty content
+                timestamp: getCurrentTimestamp(), 
+                provider: "..." 
+            };
+            setMessages((prevMessages) => [...prevMessages, newMessage, assistantMessagePlaceholder]);
             setInput("");
             if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
             
@@ -493,31 +499,52 @@ function App() {
             const currentMessagesContext = [...messages, newMessage];
             const finalMessagesForApi = currentMessagesContext.slice(Math.max(0, currentMessagesContext.length - 6)).map(m => ({ role: m.role, content: m.content }));
 
-            try {
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
-                const response = await fetch(backendUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: finalMessagesForApi }), });
-                
-                if (!response.ok) {
-                    let errData = { error: `HTTP error! status: ${response.status} ${response.statusText}` };
-                    try { const errorBody = await response.json(); errData.error = errorBody.error || (errorBody.reply?.content) || errData.error; } catch (parseError) { /* ignore */ }
-                    throw new Error(errData.error);
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
+            const eventSource = new EventSource(backendUrl, { withCredentials: true });
+
+            let sentenceBuffer = "";
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'chunk') {
+                    setMessages(prev => prev.map((msg, index) => {
+                        if (index === prev.length - 1) {
+                            sentenceBuffer += data.content;
+                            // Check for sentence completion and send to TTS
+                            if (/[.!?]/.test(sentenceBuffer)) {
+                                const sentences = sentenceBuffer.match(/[^.!?]+[.!?]*/g) || [];
+                                if (sentences.length > 1) {
+                                    const completeSentences = sentences.slice(0, -1).join(' ').trim();
+                                    if(completeSentences) playSound(completeSentences);
+                                    sentenceBuffer = sentences.slice(-1)[0];
+                                }
+                            }
+                            return { ...msg, content: msg.content + data.content, provider: data.provider };
+                        }
+                        return msg;
+                    }));
+                } else if (data.type === 'end') {
+                    // Handle any remaining text in the buffer
+                    if (sentenceBuffer.trim()) {
+                        playSound(sentenceBuffer.trim());
+                        sentenceBuffer = "";
+                    }
+                    setIsLoading(false);
+                    eventSource.close();
+                } else if (data.type === 'error') {
+                    setError(data.content);
+                    setIsLoading(false);
+                    eventSource.close();
                 }
-                const data = await response.json();
-                if (data.reply && data.reply.content) {
-                    const newAssistantMessage: Message = { role: "assistant", content: data.reply.content, timestamp: getCurrentTimestamp(), provider: data.reply.provider };
-                    setMessages((prevMessages) => [...prevMessages, newAssistantMessage]);
-                    playSound(newAssistantMessage.content);
-                } else { throw new Error("Struktur respons dari server tidak valid."); }
-            } catch (err: any) {
-                const errorMessageText = err.message || "Gagal mendapatkan respons dari server.";
-                console.error("Submit Error:", err);
-                setError(errorMessageText);
-                const assistantErrorMessage: Message = { role: "assistant", content: `Error: ${errorMessageText}`, timestamp: getCurrentTimestamp(), provider: "Sistem Error" };
-                setMessages((prevMessages) => [...prevMessages, assistantErrorMessage]);
-                playSound(`Terjadi kesalahan: ${errorMessageText}`);
-            } finally {
+            };
+
+            eventSource.onerror = (err) => {
+                console.error("EventSource failed:", err);
+                setError("Koneksi ke server gagal atau terputus.");
                 setIsLoading(false);
-            }
+                eventSource.close();
+            };
         }
     }, [isLoading, messages, playSound]);
 
