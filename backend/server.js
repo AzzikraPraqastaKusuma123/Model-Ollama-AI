@@ -316,7 +316,7 @@ app.post('/api/chat', async (req, res) => {
         }
         // --- End of formatting ---
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1alpha/models/gemini-1.5-flash-latest:streamGenerateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1alpha/models/gemini-pro:streamGenerateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -364,7 +364,7 @@ app.post('/api/chat', async (req, res) => {
                             const eventData = {
                                 type: 'chunk',
                                 content: textChunk,
-                                provider: 'Gemini-1.5-Flash'
+                                provider: 'Gemini-Pro'
                             };
                             res.write(`data: ${JSON.stringify(eventData)}\n\n`);
                         }
@@ -384,7 +384,7 @@ app.post('/api/chat', async (req, res) => {
         res.write(`data: ${JSON.stringify(errorData)}\n\n`);
     } finally {
         // Send a final event to signal the end of the stream
-        const endData = { type: 'end', provider: 'Gemini-1.5-Flash' };
+        const endData = { type: 'end', provider: 'Gemini-Pro' };
         res.write(`data: ${JSON.stringify(endData)}\n\n`);
         res.end();
         console.log('   Koneksi stream ditutup.');
