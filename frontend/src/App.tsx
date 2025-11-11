@@ -499,52 +499,76 @@ function App() {
             const currentMessagesContext = [...messages, newMessage];
             const finalMessagesForApi = currentMessagesContext.slice(Math.max(0, currentMessagesContext.length - 6)).map(m => ({ role: m.role, content: m.content }));
 
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
-            const eventSource = new EventSource(backendUrl, { withCredentials: true });
+            try {
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
+                const response = await fetch(backendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: finalMessagesForApi }),
+                });
 
-            let sentenceBuffer = "";
-
-            eventSource.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'chunk') {
-                    setMessages(prev => prev.map((msg, index) => {
-                        if (index === prev.length - 1) {
-                            sentenceBuffer += data.content;
-                            // Check for sentence completion and send to TTS
-                            if (/[.!?]/.test(sentenceBuffer)) {
-                                const sentences = sentenceBuffer.match(/[^.!?]+[.!?]*/g) || [];
-                                if (sentences.length > 1) {
-                                    const completeSentences = sentences.slice(0, -1).join(' ').trim();
-                                    if(completeSentences) playSound(completeSentences);
-                                    sentenceBuffer = sentences.slice(-1)[0];
-                                }
-                            }
-                            return { ...msg, content: msg.content + data.content, provider: data.provider };
-                        }
-                        return msg;
-                    }));
-                } else if (data.type === 'end') {
-                    // Handle any remaining text in the buffer
-                    if (sentenceBuffer.trim()) {
-                        playSound(sentenceBuffer.trim());
-                        sentenceBuffer = "";
-                    }
-                    setIsLoading(false);
-                    eventSource.close();
-                } else if (data.type === 'error') {
-                    setError(data.content);
-                    setIsLoading(false);
-                    eventSource.close();
+                if (!response.ok || !response.body) {
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
                 }
-            };
 
-            eventSource.onerror = (err) => {
-                console.error("EventSource failed:", err);
-                setError("Koneksi ke server gagal atau terputus.");
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+                let sentenceBuffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        if (sentenceBuffer.trim()) {
+                            playSound(sentenceBuffer.trim());
+                        }
+                        break;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    let boundary;
+                    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                        const eventString = buffer.substring(0, boundary);
+                        buffer = buffer.substring(boundary + 2);
+
+                        if (eventString.startsWith('data:')) {
+                            const jsonStr = eventString.substring(5).trim();
+                            try {
+                                const data = JSON.parse(jsonStr);
+                                if (data.type === 'chunk') {
+                                    setMessages(prev => prev.map((msg, index) => {
+                                        if (index === prev.length - 1) {
+                                            sentenceBuffer += data.content;
+                                            if (/[.!?]/.test(sentenceBuffer)) {
+                                                const sentences = sentenceBuffer.match(/[^.!?]+[.!?]*/g) || [];
+                                                if (sentences.length > 1) {
+                                                    const completeSentences = sentences.slice(0, -1).join(' ').trim();
+                                                    if(completeSentences) playSound(completeSentences);
+                                                    sentenceBuffer = sentences.slice(-1)[0];
+                                                }
+                                            }
+                                            return { ...msg, content: msg.content + data.content, provider: data.provider };
+                                        }
+                                        return msg;
+                                    }));
+                                } else if (data.type === 'end') {
+                                    // This is now handled in the 'done' block of the reader
+                                } else if (data.type === 'error') {
+                                    setError(data.content);
+                                }
+                            } catch (e) {
+                                console.error("Failed to parse stream JSON:", e);
+                            }
+                        }
+                    }
+                }
+            } catch (err: any) {
+                console.error("Fetch stream failed:", err);
+                setError(`Koneksi ke server gagal: ${err.message}`);
+            } finally {
                 setIsLoading(false);
-                eventSource.close();
-            };
+            }
         }
     }, [isLoading, messages, playSound]);
 
