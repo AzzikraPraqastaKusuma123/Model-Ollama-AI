@@ -6,8 +6,8 @@
 .messageCard {
   display: flex;
   flex-direction: column;
-  margin-bottom: 1rem;
-  max-width: 80%; /* Limit width for readability */
+  margin-bottom: 1.25rem; /* Increased margin */
+  max-width: 85%; /* Slightly increased width for readability */
   animation: fadeInScale 0.3s ease-out;
 }
 
@@ -24,9 +24,9 @@
 .messageHeader {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  font-size: 0.8rem;
+  gap: 0.6rem; /* Increased gap */
+  margin-bottom: 0.3rem; /* Adjusted margin */
+  font-size: 0.85rem; /* Slightly larger font */
   color: var(--muted-foreground);
 }
 
@@ -49,25 +49,25 @@
 
 .userContent,
 .assistantContent {
-  padding: 0.75rem 1rem;
-  border-radius: 1.25rem; /* More rounded corners */
-  font-size: 0.95rem;
-  line-height: 1.4;
+  padding: 0.85rem 1.15rem; /* Adjusted padding */
+  border-radius: 1.35rem; /* Slightly more rounded corners */
+  font-size: 1rem; /* Slightly larger font */
+  line-height: 1.5;
   word-wrap: break-word;
   white-space: pre-wrap; /* Preserve whitespace and line breaks */
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow); /* Added subtle shadow */
 }
 
 .userContent {
   background-color: var(--primary);
   color: var(--primary-foreground);
-  border-bottom-right-radius: 0.25rem; /* Sharper corner on one side */
+  border-bottom-right-radius: 0.35rem; /* Sharper corner on one side */
 }
 
 .assistantContent {
   background-color: var(--card);
   color: var(--foreground);
-  border-bottom-left-radius: 0.25rem; /* Sharper corner on one side */
+  border-bottom-left-radius: 0.35rem; /* Sharper corner on one side */
 }
 
 .assistantContent p {
@@ -77,8 +77,8 @@
 .assistantActions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: 0.6rem; /* Increased gap */
+  margin-top: 0.6rem; /* Adjusted margin */
 }
 
 .playButton {
@@ -86,30 +86,32 @@
   color: var(--foreground);
   border: none;
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 36px; /* Slightly larger button */
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
+  box-shadow: var(--shadow); /* Added subtle shadow */
 }
 
 .playButton:hover {
   background-color: var(--muted-foreground);
+  transform: scale(1.05); /* Subtle scale effect on hover */
 }
 
 .playButton svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.1rem; /* Slightly larger icon */
+  height: 1.1rem;
 }
 
 .providerTag {
-  font-size: 0.75rem;
+  font-size: 0.8rem; /* Slightly larger font */
   color: var(--muted-foreground);
   background-color: var(--background);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.75rem;
+  padding: 0.3rem 0.6rem; /* Adjusted padding */
+  border-radius: 0.85rem; /* Slightly more rounded */
 }
 
 @keyframes fadeInScale {

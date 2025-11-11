@@ -107,7 +107,16 @@ const SendIcon = () => (
     </svg>
 );
 
-
+const MicIcon = ({ isListening }: { isListening: boolean }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        {isListening ? (
+            <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 0 1 9 0v4.5a4.5 4.5 0 0 1-9 0V6Zm5.993 14.217a.75.75 0 0 1-.353 0H8.86a.75.75 0 0 1-.353 0A8.966 8.966 0 0 0 6 17.75a.75.75 0 0 1 1.5 0 7.466 7.466 0 0 1 6.5 7.5c0 .414.336.75.75.75h.001a.75.75 0 0 1 .75-.75 8.966 8.966 0 0 0 2.86-2.25.75.75 0 0 1-.353 0Z" clipRule="evenodd" />
+        ) : (
+            <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z" />
+        )}
+        <path d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.75 6.75 0 1 1-13.5 0v-1.5a.75.75 0 0 1 .75-.75Z" />
+    </svg>
+);
 
 // Tipe untuk entri log backend
 type LogEntry = {
@@ -275,6 +284,7 @@ function App() {
     const sttAnalyserNodeRef = useRef<AnalyserNode | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const ttsWatchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const audioPlayerRef = useRef<HTMLAudioElement>(null); // Deklarasi audioPlayerRef
     
     // --- REFS FOR NEW FLOW ---
     const novaActivationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -692,21 +702,39 @@ function App() {
     
     const anyTTSSpeaking = isSpeakingTTSBrowser;
 
+    const toggleListening = useCallback(() => {
+        if (recognitionRef.current) {
+            if (isListening) {
+                recognitionRef.current.stop();
+            } else {
+                recognitionRef.current.start();
+            }
+        }
+    }, [isListening]);
+
     return (
         <div className={styles.appContainer}>
-            <audio ref={audioPlayerRef} style={{ display: 'none' }} crossOrigin="anonymous" />
             <header className={styles.appHeader}>
                 <h1>Asisten AI Cerdas</h1>
+                <button 
+                    className={`${styles.iconButton} ${styles.logButton}`}
+                    onClick={() => {}} // Placeholder for log viewer toggle
+                    aria-label="Tampilkan Log Backend"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M2.25 6A2.25 2.25 0 0 1 4.5 3.75h15A2.25 2.25 0 0 1 21.75 6v12a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 18V6Zm1.5 0v12a.75.75 0 0 0 .75.75h15a.75.75 0 0 0 .75-.75V6a.75.75 0 0 0-.75-.75H4.5a.75.75 0 0 0-.75.75ZM6 9a.75.75 0 0 1 .75-.75h.008v.008H6.75A.75.75 0 0 1 6 9Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H7.5a.75.75 0 0 0-.75-.75ZM6 12a.75.75 0 0 1 .75-.75h.008v.008H6.75A.75.75 0 0 1 6 12Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H7.5a.75.75 0 0 0-.75-.75ZM6 15a.75.75 0 0 1 .75-.75h.008v.008H6.75A.75.75 0 0 1 6 15Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H7.5a.75.75 0 0 0-.75-.75ZM9 9a.75.75 0 0 1 .75-.75h.008v.008H9.75A.75.75 0 0 1 9 9Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H10.5a.75.75 0 0 0-.75-.75ZM9 12a.75.75 0 0 1 .75-.75h.008v.008H9.75A.75.75 0 0 1 9 12Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H10.5a.75.75 0 0 0-.75-.75ZM9 15a.75.75 0 0 1 .75-.75h.008v.008H9.75A.75.75 0 0 1 9 15Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H10.5a.75.75 0 0 0-.75-.75ZM12 9a.75.75 0 0 1 .75-.75h.008v.008H12.75A.75.75 0 0 1 12 9Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H13.5a.75.75 0 0 0-.75-.75ZM12 12a.75.75 0 0 1 .75-.75h.008v.008H12.75A.75.75 0 0 1 12 12Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H13.5a.75.75 0 0 0-.75-.75ZM12 15a.75.75 0 0 1 .75-.75h.008v.008H12.75A.75.75 0 0 1 12 15Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H13.5a.75.75 0 0 0-.75-.75ZM15 9a.75.75 0 0 1 .75-.75h.008v.008H15.75A.75.75 0 0 1 15 9Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H16.5a.75.75 0 0 0-.75-.75ZM15 12a.75.75 0 0 1 .75-.75h.008v.008H15.75A.75.75 0 0 1 15 12Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H16.5a.75.75 0 0 0-.75-.75ZM15 15a.75.75 0 0 1 .75-.75h.008v.008H15.75A.75.75 0 0 1 15 15Zm.75 0a.75.75 0 0 0 .75.75h.008v.008H16.5a.75.75 0 0 0-.75-.75Z" clipRule="evenodd" />
+                    </svg>
+                </button>
             </header>
 
             <main className={styles.mainContent}>
-                {(isListening || isSpeakingTTSBrowser) && (
+                {(isListening || anyTTSSpeaking) && (
                     <div className={styles.unifiedWaveformDisplayContainer}>
                         <VoiceWaveform 
                             analyserNode={sttAnalyserNodeRef.current} 
                             isListening={isListening} 
-                            isSpeaking={isSpeakingTTSBrowser}
-                            width={240}     
+                            isSpeaking={anyTTSSpeaking}
+                            width={280}     
                             height={120}     
                         />
                         <p className={styles.waveformStatusText}>
@@ -766,6 +794,16 @@ function App() {
                             aria-label="Kirim pesan"
                         >
                             <SendIcon />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={toggleListening}
+                            className={`${isListening ? styles.micButtonListening : styles.micButtonIdle} ${isNovaResponding ? styles.micButtonWithText : ''}`}
+                            disabled={isLoading || anyTTSSpeaking}
+                            aria-label={isListening ? "Berhenti mendengarkan" : "Mulai mendengarkan"}
+                        >
+                            <MicIcon isListening={isListening} />
+                            {isNovaResponding && <span>Mendengarkan...</span>}
                         </button>
                     </div>
                 </form>

@@ -1,68 +1,113 @@
+/*
+ * index.css
+ * Professional Dark Theme Overhaul
+ */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Color Palette (Shadcn-like dark theme) */
+  --background: #0F172A; /* slate-900 */
+  --foreground: #F8FAFC; /* slate-50 */
+  --card: #1E293B; /* slate-800 */
+  --card-foreground: #F8FAFC; /* slate-50 */
+  --popover: #0F172A; /* slate-900 */
+  --popover-foreground: #F8FAFC; /* slate-50 */
+  --primary: #38BDF8; /* sky-400 */
+  --primary-foreground: #0F172A; /* slate-900 */
+  --secondary: #334155; /* slate-700 */
+  --secondary-foreground: #F8FAFC; /* slate-50 */
+  --muted: #1E293B; /* slate-800 */
+  --muted-foreground: #94A3B8; /* slate-400 */
+  --accent: #67E8F9; /* cyan-400 */
+  --accent-foreground: #0F172A; /* slate-900 */
+  --destructive: #EF4444; /* red-500 */
+  --destructive-foreground: #F8FAFC; /* slate-50 */
+  --border: #334155; /* slate-700 */
+  --input: #1E293B; /* slate-800 */
+  --ring: #38BDF8; /* sky-400 */
+
+  /* Shadows */
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  /* Typography */
+  font-family: 'Inter', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark; /* Explicitly declare dark color scheme */
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
+/* Base Styles */
 body {
   margin: 0;
   display: flex;
   place-items: center;
-  min-width: 320px;
+  min-width: 100vw;
   min-height: 100vh;
+  background-color: var(--background);
+  color: var(--foreground);
+  overflow: hidden; /* Prevent body scroll, appContainer handles it */
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+/* Scrollbar Styling (for webkit browsers) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--card); /* Darker track */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--secondary); /* Muted thumb */
+  border-radius: 10px;
+  border: 2px solid var(--card); /* Border to make it thinner */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground); /* Lighter on hover */
+}
+
+/* General Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  color: var(--foreground);
+}
+
+p {
+  font-family: 'Inter', sans-serif;
+  color: var(--foreground);
+}
+
+a {
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  color: var(--primary);
+  text-decoration: none;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+a:hover {
+  color: var(--accent);
+}
+
+/* Utility Classes (if needed, though CSS Modules are preferred) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

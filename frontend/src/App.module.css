@@ -16,16 +16,17 @@
 
 /* Header Styling */
 .appHeader {
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 2rem; /* Increased padding */
   border-bottom: 1px solid var(--border);
   background-color: var(--background);
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  grid-column: 2 / 3; /* Span across the second column */
+  gap: 1rem; /* Increased gap */
+  grid-column: 2 / 3;
   grid-row: 1 / 2;
+  box-shadow: var(--shadow); /* Added subtle shadow */
 }
 
 .appHeader h1 {
@@ -66,7 +67,7 @@
 .inputFormInnerWrapper {
   display: flex;
   align-items: flex-end;
-  gap: 0.75rem;
+  gap: 1rem; /* Increased gap */
 }
 
 .inputTextArea {
@@ -91,7 +92,7 @@
 
 .inputTextArea:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: 0 0 0 3px var(--ring); /* More prominent focus shadow */
 }
 
 .inputTextArea:disabled {
@@ -104,23 +105,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 50px; /* Slightly larger buttons */
+  height: 50px;
   flex-shrink: 0;
-  border-radius: 0.75rem;
+  border-radius: 0.85rem; /* Slightly more rounded */
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
   outline: none;
+  box-shadow: var(--shadow); /* Added subtle shadow to all buttons */
 }
 
 .iconButton:focus-visible {
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: 0 0 0 3px var(--ring); /* More prominent focus shadow */
 }
 
 .iconButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  box-shadow: none; /* No shadow when disabled */
 }
 
 .iconButton:not(:disabled):active {
@@ -135,6 +138,7 @@
 
 .micButtonIdle:hover:not([disabled]) {
   background-color: var(--muted-foreground); /* Using a darker muted color */
+  transform: translateY(-2px); /* Subtle lift effect */
 }
 
 .micButtonListening {
@@ -145,6 +149,7 @@
 
 .micButtonListening:hover:not([disabled]) {
   background-color: var(--accent); /* Using accent color for hover */
+  transform: translateY(-2px); /* Subtle lift effect */
 }
 
 .sendButton {
@@ -155,6 +160,7 @@
 
 .sendButton:hover:not(:disabled) {
   filter: brightness(1.1);
+  transform: translateY(-2px); /* Subtle lift effect */
 }
 
 .sendButton svg {
@@ -210,17 +216,17 @@
   flex-direction: column; /* Stack waveform and text */
   justify-content: center;
   align-items: center;
-  padding: 1.5rem 1rem; /* Increased padding */
+  padding: 2rem 1rem; /* Increased padding for more space */
   background-color: var(--background);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  gap: 0.75rem; /* Increased space between waveform and text */
-  min-height: 180px; /* Ensure enough height for the circular waveform */
+  box-shadow: var(--shadow); /* More prominent shadow */
+  gap: 1rem; /* Increased space between waveform and text */
+  min-height: 200px; /* Ensure enough height for the circular waveform */
 }
 
 .waveformStatusText {
   color: var(--primary); /* Use primary color for emphasis */
-  font-size: 1rem; /* Slightly larger */
+  font-size: 1.1rem; /* Slightly larger */
   font-weight: 600; /* Bolder */
   animation: pulseText 1.5s infinite ease-in-out; /* Pulsing animation */
 }
@@ -228,12 +234,12 @@
 /* Style for the mic button when it contains text e.g. "Stop" */
 .micButtonWithText {
   width: auto;
-  padding: 0 1rem;
+  padding: 0 1.25rem; /* Increased padding */
 }
 
 .micButtonWithText span {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 1rem; /* Slightly larger font */
 }
 
 @keyframes fadeInScale {
@@ -258,10 +264,12 @@
   transform: translateY(-50%);
   width: 40px; /* Smaller button */
   height: 40px;
+  box-shadow: var(--shadow); /* Added shadow */
 }
 
 .logButton:hover:not([disabled]) {
   background-color: #475569; /* slate-600 */
+  transform: translateY(-2px) scale(1.02); /* Subtle lift and scale */
 }
 
 .logButton svg {
@@ -281,13 +289,14 @@
   font-family: 'Fira Code', 'Consolas', 'monospace'; /* Monospace font for logs */
   font-size: 0.85rem;
   overflow-y: auto; /* Ensure logs are scrollable within its container */
+  box-shadow: var(--shadow); /* Added subtle shadow */
 }
 
 .logViewerHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem; /* Increased padding */
   background-color: var(--background); /* Darker header */
   border-bottom: 1px solid var(--border);
 }
@@ -309,15 +318,15 @@
 .logViewerContent {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 1rem; /* Added padding */
+  padding: 1.25rem; /* Increased padding */
   background-color: var(--card); /* Even darker content area */
 }
 
 .logEntry {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  padding: 0.25rem 0;
+  gap: 0.75rem; /* Increased gap */
+  margin-bottom: 0.35rem; /* Increased margin */
+  padding: 0.35rem 0; /* Increased padding */
   border-bottom: 1px dotted var(--muted); /* Using muted color for dotted border */
   align-items: baseline; /* Align items to the baseline for better visual flow */
 }
@@ -329,7 +338,7 @@
 .logTimestamp {
   color: var(--muted-foreground);
   flex-shrink: 0;
-  max-width: 70px; /* Limit timestamp width */
+  max-width: 80px; /* Slightly increased timestamp width */
   overflow: hidden;
   text-overflow: ellipsis; /* Add ellipsis for long timestamps */
   white-space: nowrap;
@@ -338,7 +347,7 @@
 .logLevel {
   font-weight: bold;
   flex-shrink: 0;
-  max-width: 60px; /* Limit level width */
+  max-width: 70px; /* Slightly increased level width */
   text-align: right;
 }
 
