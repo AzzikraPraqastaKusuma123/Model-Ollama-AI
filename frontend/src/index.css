@@ -8,34 +8,42 @@
 
 :root {
   /* Color Palette (Shadcn-like dark theme) */
-  --background: #0F172A; /* slate-900 */
-  --foreground: #F8FAFC; /* slate-50 */
-  --card: #1E293B; /* slate-800 */
-  --card-foreground: #F8FAFC; /* slate-50 */
-  --popover: #0F172A; /* slate-900 */
-  --popover-foreground: #F8FAFC; /* slate-50 */
-  --primary: #38BDF8; /* sky-400 */
-  --primary-foreground: #0F172A; /* slate-900 */
-  --secondary: #334155; /* slate-700 */
-  --secondary-foreground: #F8FAFC; /* slate-50 */
-  --muted: #1E293B; /* slate-800 */
-  --muted-foreground: #94A3B8; /* slate-400 */
-  --accent: #67E8F9; /* cyan-400 */
-  --accent-foreground: #0F172A; /* slate-900 */
-  --destructive: #EF4444; /* red-500 */
-  --destructive-foreground: #F8FAFC; /* slate-50 */
-  --border: #334155; /* slate-700 */
-  --input: #1E293B; /* slate-800 */
-  --ring: #38BDF8; /* sky-400 */
+  --background: #020817; /* slate-950 */
+  --foreground: #f8fafc; /* slate-50 */
+  
+  --card: #0f172a; /* slate-900 */
+  --card-foreground: #f8fafc; /* slate-50 */
+  
+  --popover: #020817; /* slate-950 */
+  --popover-foreground: #f8fafc; /* slate-50 */
+  
+  --primary: #38bdf8; /* sky-400 */
+  --primary-foreground: #020817; /* slate-950 */
+  
+  --secondary: #1e293b; /* slate-800 */
+  --secondary-foreground: #f8fafc; /* slate-50 */
+  
+  --muted: #1e293b; /* slate-800 */
+  --muted-foreground: #94a3b8; /* slate-400 */
+  
+  --accent: #0ea5e9; /* sky-500 */
+  --accent-foreground: #f8fafc; /* slate-50 */
+  
+  --destructive: #f43f5e; /* rose-500 */
+  --destructive-foreground: #f8fafc; /* slate-50 */
+  
+  --border: #1e293b; /* slate-800 */
+  --input: #1e293b; /* slate-800 */
+  --ring: #38bdf8; /* sky-400 */
+
+  /* Radius */
+  --radius: 0.5rem;
 
   /* Shadows */
-  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
-
-  /* Typography */
-  font-family: 'Inter', sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: dark; /* Explicitly declare dark color scheme */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 /* Base Styles */
@@ -47,6 +55,9 @@ body {
   min-height: 100vh;
   background-color: var(--background);
   color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow: hidden; /* Prevent body scroll, appContainer handles it */
 }
 
@@ -59,47 +70,49 @@ body {
 
 /* Scrollbar Styling (for webkit browsers) */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--card); /* Darker track */
-  border-radius: 10px;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--secondary); /* Muted thumb */
-  border-radius: 10px;
-  border: 2px solid var(--card); /* Border to make it thinner */
+  background: var(--secondary);
+  border-radius: var(--radius);
+  border: 2px solid var(--background);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground); /* Lighter on hover */
+  background: var(--muted-foreground);
 }
 
 /* General Typography */
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Inter', sans-serif;
   color: var(--foreground);
+  font-weight: 600;
 }
 
 p {
   font-family: 'Inter', sans-serif;
-  color: var(--foreground);
+  color: var(--muted-foreground);
+  line-height: 1.6;
 }
 
 a {
   font-weight: 500;
   color: var(--primary);
   text-decoration: none;
+  transition: color 0.2s ease-in-out;
 }
 
 a:hover {
   color: var(--accent);
 }
 
-/* Utility Classes (if needed, though CSS Modules are preferred) */
+/* Utility Classes */
 .sr-only {
   position: absolute;
   width: 1px;

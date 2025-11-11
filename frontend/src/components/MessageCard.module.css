@@ -6,36 +6,30 @@
 .messageCard {
   display: flex;
   flex-direction: column;
-  margin-bottom: 1.25rem; /* Increased margin */
-  max-width: 85%; /* Slightly increased width for readability */
-  animation: fadeInScale 0.3s ease-out;
+  margin-bottom: 1.5rem;
+  max-width: 85%;
+  animation: fadeInScale 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .userMessage {
   align-self: flex-end;
-  margin-left: auto; /* Push to the right */
 }
 
 .assistantMessage {
   align-self: flex-start;
-  margin-right: auto; /* Push to the left */
 }
 
 .messageHeader {
   display: flex;
   align-items: center;
-  gap: 0.6rem; /* Increased gap */
-  margin-bottom: 0.3rem; /* Adjusted margin */
-  font-size: 0.85rem; /* Slightly larger font */
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
 
 .userMessage .messageHeader {
   justify-content: flex-end;
-}
-
-.assistantMessage .messageHeader {
-  justify-content: flex-start;
 }
 
 .messageRole {
@@ -47,87 +41,123 @@
   font-size: 0.75rem;
 }
 
+.contentWrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.userMessage .contentWrapper {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.userAvatar {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.assistantAvatar {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
 .userContent,
 .assistantContent {
-  padding: 0.85rem 1.15rem; /* Adjusted padding */
-  border-radius: 1.35rem; /* Slightly more rounded corners */
-  font-size: 1rem; /* Slightly larger font */
-  line-height: 1.5;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  line-height: 1.6;
   word-wrap: break-word;
-  white-space: pre-wrap; /* Preserve whitespace and line breaks */
-  box-shadow: var(--shadow); /* Added subtle shadow */
+  white-space: pre-wrap;
+  box-shadow: var(--shadow);
 }
 
 .userContent {
   background-color: var(--primary);
   color: var(--primary-foreground);
-  border-bottom-right-radius: 0.35rem; /* Sharper corner on one side */
+  border-bottom-right-radius: 0.25rem;
 }
 
 .assistantContent {
   background-color: var(--card);
   color: var(--foreground);
-  border-bottom-left-radius: 0.35rem; /* Sharper corner on one side */
+  border-bottom-left-radius: 0.25rem;
 }
 
 .assistantContent p {
   margin: 0;
+  color: var(--card-foreground);
 }
 
 .assistantActions {
   display: flex;
   align-items: center;
-  gap: 0.6rem; /* Increased gap */
-  margin-top: 0.6rem; /* Adjusted margin */
+  gap: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .playButton {
-  background-color: var(--muted);
-  color: var(--foreground);
+  background-color: transparent;
+  color: var(--muted-foreground);
   border: none;
   border-radius: 50%;
-  width: 36px; /* Slightly larger button */
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
-  box-shadow: var(--shadow); /* Added subtle shadow */
+  transition: background-color 0.2s, color 0.2s, transform 0.1s;
 }
 
 .playButton:hover {
-  background-color: var(--muted-foreground);
-  transform: scale(1.05); /* Subtle scale effect on hover */
+  background-color: var(--secondary);
+  color: var(--foreground);
+  transform: scale(1.1);
 }
 
 .playButton svg {
-  width: 1.1rem; /* Slightly larger icon */
-  height: 1.1rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .providerTag {
-  font-size: 0.8rem; /* Slightly larger font */
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   background-color: var(--background);
-  padding: 0.3rem 0.6rem; /* Adjusted padding */
-  border-radius: 0.85rem; /* Slightly more rounded */
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
 @keyframes fadeInScale {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
   .messageCard {
-    max-width: 90%; /* Allow messages to take more width on smaller screens */
+    max-width: 95%;
+  }
+  .userContent, .assistantContent {
+    font-size: 0.9375rem;
   }
 }

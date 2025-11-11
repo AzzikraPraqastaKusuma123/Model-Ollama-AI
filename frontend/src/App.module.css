@@ -3,71 +3,185 @@
  * Professional Dark Theme Overhaul
  */
 
-/* Main App Layout */
 .appContainer {
-  display: grid;
-  grid-template-columns: 350px 1fr; /* Log viewer 350px, main content takes rest */
-  grid-template-rows: auto 1fr auto; /* Header, main content, input form */
+  display: flex;
   height: 100vh;
   width: 100vw;
   background-color: var(--background);
   color: var(--foreground);
+  overflow: hidden;
 }
 
-/* Header Styling */
-.appHeader {
-  padding: 1.25rem 2rem; /* Increased padding */
-  border-bottom: 1px solid var(--border);
+.logViewerContainer {
+  width: var(--log-viewer-width, 350px);
   background-color: var(--background);
-  text-align: center;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease-in-out;
+  overflow-x: hidden;
+  flex-shrink: 0;
+}
+
+.logViewerContainer[data-collapsed="true"] {
+  width: 0;
+  border-right: none;
+}
+
+.logViewerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+.logViewerContainer[data-collapsed="true"] .logViewerHeader {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.logViewerHeader h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.logViewerContent {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+.logViewerContainer[data-collapsed="true"] .logViewerContent {
+  opacity: 0;
+}
+
+
+.logEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.logHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logTimestamp {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+
+.logLevel {
+  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+}
+
+.logMessage {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border);
+  min-width: 0;
+}
+
+.info .logLevel { color: var(--accent); }
+.warn .logLevel { color: #facc15; } /* yellow-400 */
+.error .logLevel { color: var(--destructive); }
+.info .logMessage { color: var(--foreground); }
+.warn .logMessage { color: #facc15; }
+.error .logMessage { color: var(--destructive); }
+
+.mainPanel {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.appHeader {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1rem; /* Increased gap */
-  grid-column: 2 / 3;
-  grid-row: 1 / 2;
-  box-shadow: var(--shadow); /* Added subtle shadow */
+  justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .appHeader h1 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: var(--foreground);
   margin: 0;
 }
 
-/* Main Content Area */
 .mainContent {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  max-width: 800px; /* Keep max-width for content within the column */
-  margin: 0 auto; /* Center content within its column */
-  grid-column: 2 / 3; /* Span across the second column */
-  grid-row: 2 / 3;
 }
 
 .messagesListContainer {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
 }
 
-/* Input Form Area */
-.messageInputForm {
+.unifiedWaveformDisplayContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background-color: hsl(var(--background) / 0.5);
+  backdrop-filter: blur(4px);
+  gap: 0.5rem;
+  min-height: 160px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.waveformStatusText {
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  animation: pulseText 1.8s infinite ease-in-out;
+}
+
+.messageInputForm {
+  padding: 1rem 1.5rem;
   border-top: 1px solid var(--border);
   background-color: var(--background);
-  grid-column: 2 / 3; /* Span across the second column */
-  grid-row: 3 / 4;
+  flex-shrink: 0;
 }
 
 .inputFormInnerWrapper {
+  max-width: 960px;
+  margin: 0 auto;
   display: flex;
   align-items: flex-end;
-  gap: 1rem; /* Increased gap */
+  gap: 0.75rem;
 }
 
 .inputTextArea {
@@ -75,12 +189,12 @@
   background-color: var(--input);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  padding: 0.625rem 1rem;
   font-size: 1rem;
   line-height: 1.5;
   resize: none;
-  min-height: 48px;
+  min-height: 44px;
   max-height: 200px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -92,83 +206,77 @@
 
 .inputTextArea:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--ring); /* More prominent focus shadow */
+  box-shadow: 0 0 0 1px var(--ring);
 }
 
 .inputTextArea:disabled {
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
-/* Buttons */
 .iconButton {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50px; /* Slightly larger buttons */
-  height: 50px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: 0.85rem; /* Slightly more rounded */
-  border: none;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s; /* Added box-shadow to transition */
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
   outline: none;
-  box-shadow: var(--shadow); /* Added subtle shadow to all buttons */
 }
 
 .iconButton:focus-visible {
-  box-shadow: 0 0 0 3px var(--ring); /* More prominent focus shadow */
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .iconButton:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none; /* No shadow when disabled */
+  background-color: var(--muted);
+}
+
+.iconButton:not(:disabled):hover {
+  background-color: hsl(var(--secondary) / 0.8);
 }
 
 .iconButton:not(:disabled):active {
   transform: scale(0.95);
 }
 
-.micButtonIdle {
-  composes: iconButton;
-  background-color: var(--muted);
-  color: var(--foreground);
-}
-
-.micButtonIdle:hover:not([disabled]) {
-  background-color: var(--muted-foreground); /* Using a darker muted color */
-  transform: translateY(-2px); /* Subtle lift effect */
-}
-
-.micButtonListening {
-  composes: iconButton;
-  background-color: var(--primary); /* Using primary color for active state */
-  color: var(--primary-foreground);
-}
-
-.micButtonListening:hover:not([disabled]) {
-  background-color: var(--accent); /* Using accent color for hover */
-  transform: translateY(-2px); /* Subtle lift effect */
-}
-
 .sendButton {
   composes: iconButton;
   background-color: var(--primary);
   color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.sendButton:not(:disabled):hover {
+  background-color: hsl(var(--primary) / 0.9);
 }
 
-.sendButton:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-2px); /* Subtle lift effect */
+.micButtonListening {
+  composes: iconButton;
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive);
+}
+.micButtonListening:not(:disabled):hover {
+  background-color: hsl(var(--destructive) / 0.9);
 }
 
-.sendButton svg {
-  width: 1.25rem;
-  height: 1.25rem;
+.micButtonWithText {
+  width: auto;
+  padding: 0 1rem;
+}
+.micButtonWithText span {
+  font-weight: 500;
+  font-size: 0.9375rem;
 }
 
-/* Loading Indicator */
 .loadingIndicatorContainer {
   display: flex;
   padding: 0.5rem 0;
@@ -178,235 +286,83 @@
   display: flex;
   align-items: center;
   background-color: var(--card);
-  padding: 0.75rem 1rem;
-  border-radius: 1.25rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 1.5rem;
 }
 
 .loadingDots div {
   width: 8px;
   height: 8px;
-  margin: 0 2px;
+  margin: 0 3px;
   background-color: var(--muted-foreground);
   border-radius: 50%;
   display: inline-block;
   animation: bounceDots 1.4s infinite ease-in-out both;
 }
-
 .loadingDots div:nth-child(1) { animation-delay: -0.32s; }
 .loadingDots div:nth-child(2) { animation-delay: -0.16s; }
+
+.errorMessageContainer {
+  padding: 1rem;
+  background-color: hsl(var(--destructive) / 0.1);
+  color: var(--destructive);
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
 
 @keyframes bounceDots {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1.0); }
 }
 
-/* Error Message */
-.errorMessageContainer {
-  padding: 1rem;
-  background-color: var(--card); /* Using card background */
-  color: var(--primary); /* Using primary color for error text */
-  border-top: 1px solid var(--border);
-  text-align: center;
-  font-weight: 500;
-}
-
-/* Waveform & Other styles */
-.unifiedWaveformDisplayContainer {
-  display: flex;
-  flex-direction: column; /* Stack waveform and text */
-  justify-content: center;
-  align-items: center;
-  padding: 2rem 1rem; /* Increased padding for more space */
-  background-color: var(--background);
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow); /* More prominent shadow */
-  gap: 1rem; /* Increased space between waveform and text */
-  min-height: 200px; /* Ensure enough height for the circular waveform */
-}
-
-.waveformStatusText {
-  color: var(--primary); /* Use primary color for emphasis */
-  font-size: 1.1rem; /* Slightly larger */
-  font-weight: 600; /* Bolder */
-  animation: pulseText 1.5s infinite ease-in-out; /* Pulsing animation */
-}
-
-/* Style for the mic button when it contains text e.g. "Stop" */
-.micButtonWithText {
-  width: auto;
-  padding: 0 1.25rem; /* Increased padding */
-}
-
-.micButtonWithText span {
-  font-weight: 600;
-  font-size: 1rem; /* Slightly larger font */
-}
-
-@keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes pulseText {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
-
-/* Log Viewer Styles */
-.logButton {
-  composes: iconButton;
-  background-color: var(--muted);
-  color: var(--foreground);
-  position: absolute; /* Position relative to header */
-  right: 1.5rem; /* Adjust as needed */
-  top: 50%;
-  transform: translateY(-50%);
-  width: 40px; /* Smaller button */
-  height: 40px;
-  box-shadow: var(--shadow); /* Added shadow */
-}
-
-.logButton:hover:not([disabled]) {
-  background-color: #475569; /* slate-600 */
-  transform: translateY(-2px) scale(1.02); /* Subtle lift and scale */
-}
-
-.logButton svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.logViewerContainer {
-  grid-column: 1 / 2; /* Place in the first column */
-  grid-row: 1 / -1; /* Span all rows */
-  background-color: var(--card); /* Even darker content area */
-  border-right: 1px solid var(--border); /* Add a border to separate it from main content */
-  z-index: 1; /* Lower z-index as it's not an overlay anymore */
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground); /* Light grey text */
-  font-family: 'Fira Code', 'Consolas', 'monospace'; /* Monospace font for logs */
-  font-size: 0.85rem;
-  overflow-y: auto; /* Ensure logs are scrollable within its container */
-  box-shadow: var(--shadow); /* Added subtle shadow */
-}
-
-.logViewerHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem 1.5rem; /* Increased padding */
-  background-color: var(--background); /* Darker header */
-  border-bottom: 1px solid var(--border);
-}
-
-.logViewerHeader h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--foreground);
-}
-
-.closeLogButton {
-  display: none; /* This button is no longer needed as the log viewer is always open */
-}
-
-.closeLogButton:hover {
-  background-color: #555;
-}
-
-.logViewerContent {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 1.25rem; /* Increased padding */
-  background-color: var(--card); /* Even darker content area */
-}
-
-.logEntry {
-  display: flex;
-  gap: 0.75rem; /* Increased gap */
-  margin-bottom: 0.35rem; /* Increased margin */
-  padding: 0.35rem 0; /* Increased padding */
-  border-bottom: 1px dotted var(--muted); /* Using muted color for dotted border */
-  align-items: baseline; /* Align items to the baseline for better visual flow */
-}
-
-.logEntry:last-child {
-  border-bottom: none;
-}
-
-.logTimestamp {
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-  max-width: 80px; /* Slightly increased timestamp width */
-  overflow: hidden;
-  text-overflow: ellipsis; /* Add ellipsis for long timestamps */
-  white-space: nowrap;
-}
-
-.logLevel {
-  font-weight: bold;
-  flex-shrink: 0;
-  max-width: 70px; /* Slightly increased level width */
-  text-align: right;
-}
-
-.logMessage {
-  flex-grow: 1;
-  overflow-wrap: break-word; /* Prefer overflow-wrap for better readability */
-  word-break: break-word; /* Fallback for older browsers and aggressive breaking */
-  white-space: normal; /* Ensure normal wrapping */
-}
-
-/* Log Level Colors */
-.info .logLevel { color: var(--primary); } /* Cyan */
-.warn .logLevel { color: var(--accent); } /* Yellow */
-.error .logLevel { color: var(--primary-foreground); } /* Red */
-.info .logMessage { color: var(--foreground); } /* White */
-.warn .logMessage { color: var(--muted-foreground); } /* Yellow */
-.error .logMessage { color: var(--primary); } /* Red */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .appContainer {
-    grid-template-columns: 1fr; /* Single column layout */
-    grid-template-rows: auto 1fr auto auto; /* Header, main content, input, then logs */
-    flex-direction: column; /* Ensure flex behavior for stacking */
+    flex-direction: column;
   }
-
-  .appHeader,
-  .mainContent,
-  .messageInputForm,
   .logViewerContainer {
-    grid-column: 1 / -1; /* Span full width */
-    width: 100%; /* Take full width */
-    margin: 0; /* Remove centering margins */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    height: var(--log-viewer-height, 40vh);
+    border-right: none;
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-in-out;
   }
-
+  .logViewerContainer[data-collapsed="false"] {
+    transform: translateY(0);
+  }
+  .mainPanel {
+    height: auto;
+  }
+  .messagesListContainer, .inputFormInnerWrapper {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
   .appHeader {
-    grid-row: 1 / 2;
+    padding: 0.75rem 1rem;
   }
-
-  .mainContent {
-    grid-row: 2 / 3;
+  .appHeader h1 {
+    font-size: 1rem;
   }
-
   .messageInputForm {
-    grid-row: 3 / 4;
-  }
-
-  .logViewerContainer {
-    grid-row: 4 / 5; /* Place logs at the bottom */
-    height: auto; /* Allow height to be content-driven */
-    border-right: none; /* Remove right border */
-    border-top: 1px solid var(--border); /* Add top border */
-  }
-
-  .logViewerHeader {
-    padding: 0.75rem 1rem; /* Slightly smaller padding */
-  }
-
-  .logViewerHeader h2 {
-    font-size: 1rem; /* Smaller font size */
+    padding: 0.75rem 1rem;
   }
 }
