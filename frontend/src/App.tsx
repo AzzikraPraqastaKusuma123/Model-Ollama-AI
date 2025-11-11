@@ -313,31 +313,48 @@ function App() {
         }
     }, []);
 
+    const createChunks = (text: string, maxLength: number): string[] => {
+    if (text.length <= maxLength) {
+        return [text];
+    }
+
+    const chunks: string[] = [];
+    let remainingText = text;
+
+    while (remainingText.length > 0) {
+        if (remainingText.length <= maxLength) {
+            chunks.push(remainingText);
+            break;
+        }
+
+        let splitIndex = -1;
+        const sentenceBreak = remainingText.lastIndexOf('.', maxLength);
+        if (sentenceBreak !== -1) {
+            splitIndex = sentenceBreak + 1;
+        } else {
+            const spaceBreak = remainingText.lastIndexOf(' ', maxLength);
+            if (spaceBreak !== -1) {
+                splitIndex = spaceBreak + 1;
+            }
+        }
+
+        if (splitIndex === -1 || splitIndex === 0) {
+            splitIndex = maxLength;
+        }
+
+        chunks.push(remainingText.substring(0, splitIndex));
+        remainingText = remainingText.substring(splitIndex);
+    }
+
+    return chunks.filter(chunk => chunk.trim().length > 0);
+};
+
     const playSound = useCallback((dataOrText: string | any) => {
         const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
         if (!textToSpeak) return;
 
-        const MAX_CHUNK_LENGTH = 200;
-        const chunks: string[] = []; // Explicitly type chunks as string[]
-        
-        if (textToSpeak.length < MAX_CHUNK_LENGTH) {
-            chunks.push(textToSpeak);
-        } else {
-            let currentChunk = "";
-            const sentences = textToSpeak.match(/[^.!?]+[.!?]*/g) || [];
-
-            for (const sentence of sentences) {
-                if ((currentChunk + sentence).length > MAX_CHUNK_LENGTH) {
-                    chunks.push(currentChunk.trim());
-                    currentChunk = "";
-                }
-                currentChunk += sentence + " ";
-            }
-
-            if (currentChunk.trim().length > 0) {
-                chunks.push(currentChunk.trim());
-            }
-        }
+        const MAX_CHUNK_LENGTH = 180; // More conservative chunk length
+        const chunks = createChunks(textToSpeak, MAX_CHUNK_LENGTH);
         
         if (chunks.length > 0) {
             setSpeechQueue(prev => [...prev, ...chunks]);
