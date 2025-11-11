@@ -107,20 +107,6 @@ const SendIcon = () => (
     </svg>
 );
 
-const MicrophoneIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 18.75a6 6 0 0 0 6-6v-1.5a6 6 0 0 0-12 0v1.5a6 6 0 0 0 6 6Z" />
-        <path d="M12 22.5A8.25 8.25 0 0 0 20.25 14.25v-1.5a8.25 8.25 0 0 0-16.5 0v1.5A8.25 8.25 0 0 0 12 22.5Z" />
-        <path d="M15.75 6.75a.75.75 0 0 0-1.5 0v1.659a4.504 4.504 0 0 0-2.25-1.106A4.504 4.504 0 0 0 9.75 8.409V6.75a.75.75 0 0 0-1.5 0v4.019a.75.75 0 0 0 1.085.693A3.001 3.001 0 0 1 12 10.5a2.999 2.999 0 0 1 2.665 1.462.75.75 0 0 0 1.085-.693V6.75Z" />
-    </svg>
-);
-
-const LogIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path fillRule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM6.166 5.106a.75.75 0 0 1 0 1.06L5.106 7.232a.75.75 0 0 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM18.374 5.106a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 1 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM4.5 12a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5H5.25a.75.75 0 0 1-.75-.75ZM17.25 12a.75.75 0 0 1 .75-.75h.75a.75.75 0 0 1 0 1.5h-.75a.75.75 0 0 1-.75-.75ZM12 18.75a.75.75 0 0 1 .75.75v.75a.75.75 0 0 1-1.5 0v-.75a.75.75 0 0 1 .75-.75ZM5.106 18.374a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06ZM16.313 17.061a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-    </svg>
-);
-
 
 
 // Tipe untuk entri log backend
@@ -277,29 +263,24 @@ function App() {
     const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isSpeakingTTSBrowser, setIsSpeakingTTSBrowser] = useState<boolean>(false);
-    const [isPlayingTTSFromElement, setIsPlayingTTSFromElement] = useState<boolean>(false);
+    const [speechQueue, setSpeechQueue] = useState<string[]>([]);
     const [backendLogs, setBackendLogs] = useState<LogEntry[]>([]);
     const [isNovaResponding, setIsNovaResponding] = useState<boolean>(false);
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-    const messagesEndRef = useRef<null | HTMLDivElement>(null);
+    const messagesContainerRef = useRef<null | HTMLDivElement>(null);
     const textareaRef = useRef<null | HTMLTextAreaElement>(null);
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const sttMediaStreamRef = useRef<MediaStream | null>(null);
     const sttMediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const sttAnalyserNodeRef = useRef<AnalyserNode | null>(null);
-    const ttsAudioElementSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-    const ttsAudioElementAnalyserNodeRef = useRef<AnalyserNode | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
+    const ttsWatchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
     
     // --- REFS FOR NEW FLOW ---
     const novaActivationTimerRef = useRef<NodeJS.Timeout | null>(null);
     const handleSubmitRef = useRef<((prompt: string) => Promise<void>) | null>(null);
 
-
-    const scrollToBottom = useCallback(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, []);
 
     const autoGrowTextarea = useCallback(() => {
         if (textareaRef.current) {
@@ -321,36 +302,46 @@ function App() {
         return audioContextRef.current;
     }, []);
 
-    const playSound = useCallback(async (dataOrText: string | any) => {
+    const cancelAllSpeech = useCallback(() => {
+        if (typeof speechSynthesis !== 'undefined') {
+            if (ttsWatchdogTimerRef.current) {
+                clearTimeout(ttsWatchdogTimerRef.current);
+            }
+            setSpeechQueue([]);
+            setIsSpeakingTTSBrowser(false);
+            speechSynthesis.cancel();
+        }
+    }, []);
+
+    const playSound = useCallback((dataOrText: string | any) => {
         const textToSpeak = typeof dataOrText === 'string' ? dataOrText : dataOrText.content;
         if (!textToSpeak) return;
 
-        if (typeof speechSynthesis !== 'undefined') {
-            speechSynthesis.cancel();
-        }
-        setIsSpeakingTTSBrowser(true);
-
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.lang = 'id-ID';
-
-        const voices = window.speechSynthesis.getVoices();
-        const indonesianVoice = voices.find(voice => voice.lang === 'id-ID');
-        if (indonesianVoice) {
-            utterance.voice = indonesianVoice;
+        const MAX_CHUNK_LENGTH = 200;
+        const chunks: string[] = []; // Explicitly type chunks as string[]
+        
+        if (textToSpeak.length < MAX_CHUNK_LENGTH) {
+            chunks.push(textToSpeak);
         } else {
-            console.warn("Indonesian voice not found, using default.");
+            let currentChunk = "";
+            const sentences = textToSpeak.match(/[^.!?]+[.!?]*/g) || [];
+
+            for (const sentence of sentences) {
+                if ((currentChunk + sentence).length > MAX_CHUNK_LENGTH) {
+                    chunks.push(currentChunk.trim());
+                    currentChunk = "";
+                }
+                currentChunk += sentence + " ";
+            }
+
+            if (currentChunk.trim().length > 0) {
+                chunks.push(currentChunk.trim());
+            }
         }
-
-        utterance.onend = () => {
-            setIsSpeakingTTSBrowser(false);
-            console.log("Browser TTS finished speaking.");
-        };
-        utterance.onerror = (event) => {
-            setIsSpeakingTTSBrowser(false);
-            console.error("Browser TTS error:", event.error);
-        };
-
-        window.speechSynthesis.speak(utterance);
+        
+        if (chunks.length > 0) {
+            setSpeechQueue(prev => [...prev, ...chunks]);
+        }
     }, []);
 
     const playDeactivationSound = useCallback(async () => {
@@ -398,7 +389,64 @@ function App() {
         }
     }, []);
 
-    useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+    // Speech Queue Processor
+    useEffect(() => {
+        if (speechQueue.length > 0 && !isSpeakingTTSBrowser && availableVoices.length > 0) {
+            // Defensive cleanup
+            if (typeof speechSynthesis !== 'undefined') {
+                speechSynthesis.cancel();
+            }
+
+            const textToSpeak = speechQueue[0];
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'id-ID';
+
+            const indonesianVoice = availableVoices.find(voice => voice.lang === 'id-ID');
+            if (indonesianVoice) {
+                utterance.voice = indonesianVoice;
+            } else {
+                console.warn("Indonesian voice not found, using default.");
+            }
+
+            const onEndOrError = () => {
+                if (ttsWatchdogTimerRef.current) {
+                    clearTimeout(ttsWatchdogTimerRef.current);
+                }
+                setIsSpeakingTTSBrowser(false);
+                setSpeechQueue(prev => prev.slice(1));
+            };
+
+            utterance.onstart = () => {
+                setIsSpeakingTTSBrowser(true);
+                if (ttsWatchdogTimerRef.current) clearTimeout(ttsWatchdogTimerRef.current);
+                ttsWatchdogTimerRef.current = setTimeout(() => {
+                    console.warn("TTS watchdog triggered. Resetting state.");
+                    cancelAllSpeech();
+                }, 15000); // Increased to 15 seconds
+            };
+
+            utterance.onend = () => {
+                onEndOrError();
+            };
+            utterance.onerror = (event) => {
+                console.error("Browser TTS error:", event.error, "for text:", textToSpeak);
+                onEndOrError();
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        }
+    }, [speechQueue, isSpeakingTTSBrowser, availableVoices, cancelAllSpeech]);
+
+
+    useEffect(() => {
+        if (messagesContainerRef.current) {
+            const { scrollHeight, clientHeight, scrollTop } = messagesContainerRef.current;
+            if (scrollHeight - clientHeight <= scrollTop + 100) {
+                 messagesContainerRef.current.scrollTop = scrollHeight;
+            }
+        }
+    }, [messages]);
+
     useEffect(() => { autoGrowTextarea(); }, [input, autoGrowTextarea]);
 
     const fetchLogs = useCallback(async () => {
@@ -449,7 +497,7 @@ function App() {
                 if (data.reply && data.reply.content) {
                     const newAssistantMessage: Message = { role: "assistant", content: data.reply.content, timestamp: getCurrentTimestamp(), provider: data.reply.provider };
                     setMessages((prevMessages) => [...prevMessages, newAssistantMessage]);
-                    await playSound(newAssistantMessage.content);
+                    playSound(newAssistantMessage.content);
                 } else { throw new Error("Struktur respons dari server tidak valid."); }
             } catch (err: any) {
                 const errorMessageText = err.message || "Gagal mendapatkan respons dari server.";
@@ -457,7 +505,7 @@ function App() {
                 setError(errorMessageText);
                 const assistantErrorMessage: Message = { role: "assistant", content: `Error: ${errorMessageText}`, timestamp: getCurrentTimestamp(), provider: "Sistem Error" };
                 setMessages((prevMessages) => [...prevMessages, assistantErrorMessage]);
-                await playSound(`Terjadi kesalahan: ${errorMessageText}`);
+                playSound(`Terjadi kesalahan: ${errorMessageText}`);
             } finally {
                 setIsLoading(false);
             }
@@ -487,15 +535,14 @@ function App() {
         
         const recognitionInstance: SpeechRecognition = new SpeechRecognitionAPI();
         recognitionInstance.continuous = true;
-        recognitionInstance.interimResults = false; // Process only final results for clarity
+        recognitionInstance.interimResults = false;
         recognitionInstance.lang = 'id-ID';
         
         recognitionInstance.onstart = () => {
             console.log("STT dimulai.");
             setError(null);
             setIsListening(true);
-            if (isSpeakingTTSBrowser && typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
-            if (isPlayingTTSFromElement && audioPlayerRef.current) audioPlayerRef.current.pause();
+            cancelAllSpeech();
         };
         recognitionInstance.onend = () => {
             console.log("STT berakhir. Memulai ulang...");
@@ -529,7 +576,6 @@ function App() {
             console.log("Final Transcript:", finalTranscript);
 
             if (isNovaResponding) {
-                // --- STATE: NOVA IS ACTIVE ---
                 if (novaActivationTimerRef.current) {
                     clearTimeout(novaActivationTimerRef.current);
                     novaActivationTimerRef.current = null;
@@ -543,17 +589,17 @@ function App() {
                     console.log("Prompt captured:", finalTranscript);
                     playDeactivationSound();
                     handleSubmitRef.current?.(finalTranscript);
-                    setIsNovaResponding(false); // Deactivate immediately after sending prompt
+                    setIsNovaResponding(false);
                 }
             } else {
-                // --- STATE: NOVA IS INACTIVE ---
                 if (finalTranscript.includes("nova")) {
                     console.log("Nova activated! Listening for prompt for 5 minutes.");
-                    playSound("Iya, tuan");
+                    setTimeout(() => {
+                        playSound("Iya, tuan");
+                    }, 100);
                     setIsNovaResponding(true);
-                    setError(null); // Clear any previous errors
+                    setError(null);
 
-                    // Start 5-minute timeout
                     if (novaActivationTimerRef.current) {
                         clearTimeout(novaActivationTimerRef.current);
                     }
@@ -562,7 +608,7 @@ function App() {
                         playDeactivationSound();
                         setIsNovaResponding(false);
                         novaActivationTimerRef.current = null;
-                    }, 5 * 60 * 1000); // 5 minutes
+                    }, 5 * 60 * 1000);
                 }
             }
         };
@@ -588,7 +634,7 @@ function App() {
                 clearTimeout(novaActivationTimerRef.current);
             }
         };
-    }, [isSpeakingTTSBrowser, isPlayingTTSFromElement, isNovaResponding, playSound, playDeactivationSound]);
+    }, [isNovaResponding, playSound, playDeactivationSound, cancelAllSpeech]);
 
 
     useEffect(() => {
@@ -635,7 +681,7 @@ function App() {
         };
     }, [isListening, ensureAudioContext]);
     
-    const anyTTSSpeaking = isSpeakingTTSBrowser || isPlayingTTSFromElement;
+    const anyTTSSpeaking = isSpeakingTTSBrowser;
 
     return (
         <div className={styles.appContainer}>
@@ -659,7 +705,7 @@ function App() {
                         </p>
                     </div>
                 )}
-                <div className={styles.messagesListContainer}>
+                <div ref={messagesContainerRef} className={styles.messagesListContainer}>
                     {messages.map((message, index) => (
                         <MessageCard
                             key={index} 
@@ -681,7 +727,6 @@ function App() {
                             </div>
                         </div>
                     )}
-                    <div ref={messagesEndRef} style={{ height: '1px' }}/>
                 </div>
 
                 {error && !isLoading && (
