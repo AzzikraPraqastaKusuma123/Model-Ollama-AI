@@ -1,82 +1,72 @@
 /*
  * App.module.css
- * Professional UI Overhaul
+ * Professional Dark Theme Overhaul
  */
 
-/* Main App Layout using CSS Grid */
+/* Main App Layout */
 .appContainer {
   display: grid;
-  grid-template-columns: 380px 1fr; /* Sidebar for logs, main content for chat */
-  grid-template-rows: 1fr; /* Single row, height is determined by container */
+  grid-template-columns: 350px 1fr; /* Log viewer 350px, main content takes rest */
+  grid-template-rows: auto 1fr auto; /* Header, main content, input form */
   height: 100vh;
   width: 100vw;
   background-color: var(--background);
   color: var(--foreground);
-  overflow: hidden;
-}
-
-/* Main Chat Panel (Right Side) */
-.chatPanel {
-  grid-column: 2 / 3;
-  display: grid;
-  grid-template-rows: auto 1fr auto; /* Header, Messages, Form */
-  height: 100vh;
-  overflow: hidden;
-  border-left: 1px solid var(--border);
 }
 
 /* Header Styling */
 .appHeader {
   padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
   background-color: var(--background);
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 1 / 2;
 }
 
 .appHeader h1 {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--foreground);
   margin: 0;
 }
 
-/* Main Content Area (Messages) */
+/* Main Content Area */
 .mainContent {
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  max-width: 800px; /* Keep max-width for content within the column */
+  margin: 0 auto; /* Center content within its column */
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 2 / 3;
 }
 
 .messagesListContainer {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
+  padding: 1.5rem 1rem;
 }
 
 /* Input Form Area */
 .messageInputForm {
-  padding: 1rem 1.5rem;
-  background-color: rgba(15, 23, 42, 0.7); /* slate-900 with transparency */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  padding: 1rem;
   border-top: 1px solid var(--border);
-  flex-shrink: 0;
+  background-color: var(--background);
+  grid-column: 2 / 3; /* Span across the second column */
+  grid-row: 3 / 4;
 }
 
 .inputFormInnerWrapper {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .inputTextArea {
@@ -84,7 +74,7 @@
   background-color: var(--input);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 1rem;
   line-height: 1.5;
@@ -101,7 +91,7 @@
 
 .inputTextArea:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px hsla(200, 95%, 65%, 0.3);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .inputTextArea:disabled {
@@ -117,25 +107,44 @@
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: var(--radius);
+  border-radius: 0.75rem;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s, transform 0.1s;
   outline: none;
 }
 
 .iconButton:focus-visible {
-  box-shadow: 0 0 0 3px hsla(200, 95%, 65%, 0.3);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .iconButton:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
-  transform: scale(1);
 }
 
 .iconButton:not(:disabled):active {
-  transform: scale(0.92);
+  transform: scale(0.95);
+}
+
+.micButtonIdle {
+  composes: iconButton;
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.micButtonIdle:hover:not([disabled]) {
+  background-color: var(--muted-foreground); /* Using a darker muted color */
+}
+
+.micButtonListening {
+  composes: iconButton;
+  background-color: var(--primary); /* Using primary color for active state */
+  color: var(--primary-foreground);
+}
+
+.micButtonListening:hover:not([disabled]) {
+  background-color: var(--accent); /* Using accent color for hover */
 }
 
 .sendButton {
@@ -145,20 +154,18 @@
 }
 
 .sendButton:hover:not(:disabled) {
-  background-color: hsl(200, 95%, 60%);
+  filter: brightness(1.1);
 }
 
 .sendButton svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 /* Loading Indicator */
 .loadingIndicatorContainer {
   display: flex;
   padding: 0.5rem 0;
-  justify-content: flex-start; /* Align to the left */
-  margin-left: 52px; /* Align with assistant message */
 }
 
 .loadingIndicatorBubble {
@@ -167,7 +174,6 @@
   background-color: var(--card);
   padding: 0.75rem 1rem;
   border-radius: 1.25rem;
-  border-bottom-left-radius: 0.25rem;
 }
 
 .loadingDots div {
@@ -190,53 +196,91 @@
 
 /* Error Message */
 .errorMessageContainer {
-  padding: 0.75rem 1.5rem;
-  background-color: hsla(0, 80%, 50%, 0.1);
-  color: hsl(0, 80%, 70%);
-  border-top: 1px solid hsl(0, 80%, 30%);
-  border-bottom: 1px solid hsl(0, 80%, 30%);
+  padding: 1rem;
+  background-color: var(--card); /* Using card background */
+  color: var(--primary); /* Using primary color for error text */
+  border-top: 1px solid var(--border);
   text-align: center;
   font-weight: 500;
-  font-size: 0.9rem;
 }
 
-/* Waveform Display */
+/* Waveform & Other styles */
 .unifiedWaveformDisplayContainer {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* Stack waveform and text */
   justify-content: center;
   align-items: center;
-  padding: 1.5rem 1rem;
-  gap: 1rem;
-  min-height: 200px;
+  padding: 1.5rem 1rem; /* Increased padding */
+  background-color: var(--background);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  gap: 0.75rem; /* Increased space between waveform and text */
+  min-height: 180px; /* Ensure enough height for the circular waveform */
 }
 
 .waveformStatusText {
-  color: var(--primary);
-  font-size: 1rem;
+  color: var(--primary); /* Use primary color for emphasis */
+  font-size: 1rem; /* Slightly larger */
+  font-weight: 600; /* Bolder */
+  animation: pulseText 1.5s infinite ease-in-out; /* Pulsing animation */
+}
+
+/* Style for the mic button when it contains text e.g. "Stop" */
+.micButtonWithText {
+  width: auto;
+  padding: 0 1rem;
+}
+
+.micButtonWithText span {
   font-weight: 600;
-  text-shadow: 0 0 10px hsla(200, 95%, 55%, 0.5);
-  animation: pulseText 2s infinite ease-in-out;
+  font-size: 0.9rem;
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes pulseText {
   0% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.7; }
   100% { opacity: 1; }
 }
 
-/* Log Viewer (Sidebar - Left Side) */
+/* Log Viewer Styles */
+.logButton {
+  composes: iconButton;
+  background-color: var(--muted);
+  color: var(--foreground);
+  position: absolute; /* Position relative to header */
+  right: 1.5rem; /* Adjust as needed */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px; /* Smaller button */
+  height: 40px;
+}
+
+.logButton:hover:not([disabled]) {
+  background-color: #475569; /* slate-600 */
+}
+
+.logButton svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .logViewerContainer {
-  grid-column: 1 / 2;
+  grid-column: 1 / 2; /* Place in the first column */
+  grid-row: 1 / -1; /* Span all rows */
+  background-color: var(--card); /* Even darker content area */
+  border-right: 1px solid var(--border); /* Add a border to separate it from main content */
+  z-index: 1; /* Lower z-index as it's not an overlay anymore */
   display: flex;
   flex-direction: column;
-  background-color: var(--background);
-  color: var(--muted-foreground);
-  font-family: 'Fira Code', 'Consolas', 'monospace';
-  font-size: 0.8rem;
-  height: 100vh;
-  overflow: hidden;
+  color: var(--foreground); /* Light grey text */
+  font-family: 'Fira Code', 'Consolas', 'monospace'; /* Monospace font for logs */
+  font-size: 0.85rem;
+  overflow-y: auto; /* Ensure logs are scrollable within its container */
 }
 
 .logViewerHeader {
@@ -244,68 +288,116 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  background-color: var(--background);
+  background-color: var(--background); /* Darker header */
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 .logViewerHeader h2 {
   margin: 0;
   font-size: 1.1rem;
-  font-weight: 500;
   color: var(--foreground);
+}
+
+.closeLogButton {
+  display: none; /* This button is no longer needed as the log viewer is always open */
+}
+
+.closeLogButton:hover {
+  background-color: #555;
 }
 
 .logViewerContent {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 1rem 1.5rem;
+  padding: 1rem; /* Added padding */
+  background-color: var(--card); /* Even darker content area */
 }
 
 .logEntry {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 0.3rem;
-  line-height: 1.5;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted var(--muted); /* Using muted color for dotted border */
+  align-items: baseline; /* Align items to the baseline for better visual flow */
+}
+
+.logEntry:last-child {
+  border-bottom: none;
 }
 
 .logTimestamp {
-  color: hsl(215, 15%, 45%);
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  max-width: 70px; /* Limit timestamp width */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis for long timestamps */
+  white-space: nowrap;
 }
 
 .logLevel {
-  font-weight: 500;
+  font-weight: bold;
+  flex-shrink: 0;
+  max-width: 60px; /* Limit level width */
+  text-align: right;
 }
 
 .logMessage {
   flex-grow: 1;
-  overflow-wrap: break-word;
-  word-break: break-all;
-  white-space: pre-wrap;
+  overflow-wrap: break-word; /* Prefer overflow-wrap for better readability */
+  word-break: break-word; /* Fallback for older browsers and aggressive breaking */
+  white-space: normal; /* Ensure normal wrapping */
 }
 
 /* Log Level Colors */
-.info .logLevel { color: var(--primary); }
-.warn .logLevel { color: hsl(48, 95%, 55%); }
-.error .logLevel { color: hsl(0, 85%, 60%); }
-
-.info .logMessage { color: var(--muted-foreground); }
-.warn .logMessage { color: hsl(48, 95%, 75%); }
-.error .logMessage { color: hsl(0, 85%, 75%); }
+.info .logLevel { color: var(--primary); } /* Cyan */
+.warn .logLevel { color: var(--accent); } /* Yellow */
+.error .logLevel { color: var(--primary-foreground); } /* Red */
+.info .logMessage { color: var(--foreground); } /* White */
+.warn .logMessage { color: var(--muted-foreground); } /* Yellow */
+.error .logMessage { color: var(--primary); } /* Red */
 
 /* Responsive adjustments */
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
   .appContainer {
     grid-template-columns: 1fr; /* Single column layout */
-    grid-template-rows: auto 1fr; /* Header+Form, Main Content */
+    grid-template-rows: auto 1fr auto auto; /* Header, main content, input, then logs */
+    flex-direction: column; /* Ensure flex behavior for stacking */
   }
 
-  .chatPanel {
-    grid-column: 1 / -1;
-    grid-row: 1 / -1;
+  .appHeader,
+  .mainContent,
+  .messageInputForm,
+  .logViewerContainer {
+    grid-column: 1 / -1; /* Span full width */
+    width: 100%; /* Take full width */
+    margin: 0; /* Remove centering margins */
+  }
+
+  .appHeader {
+    grid-row: 1 / 2;
+  }
+
+  .mainContent {
+    grid-row: 2 / 3;
+  }
+
+  .messageInputForm {
+    grid-row: 3 / 4;
   }
 
   .logViewerContainer {
-    display: none; /* Hide log viewer on smaller screens for simplicity */
+    grid-row: 4 / 5; /* Place logs at the bottom */
+    height: auto; /* Allow height to be content-driven */
+    border-right: none; /* Remove right border */
+    border-top: 1px solid var(--border); /* Add top border */
+  }
+
+  .logViewerHeader {
+    padding: 0.75rem 1rem; /* Slightly smaller padding */
+  }
+
+  .logViewerHeader h2 {
+    font-size: 1rem; /* Smaller font size */
   }
 }

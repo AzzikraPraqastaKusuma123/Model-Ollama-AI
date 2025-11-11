@@ -65,7 +65,8 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   credentials: true,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204 // Standar untuk preflight adalah 204 No Content.
+                           // Middleware `cors` akan menangani respons untuk permintaan OPTIONS.
 };
 
 // Terapkan middleware CORS untuk SEMUA rute dan SEMUA metode (termasuk OPTIONS).
@@ -274,121 +275,85 @@ app.post('/api/keyword-detect', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-    console.log(`[${new Date().toISOString()}] /api/chat POST handler (STREAMING)`);
+    console.log(`   [${new Date().toISOString()}] /api/chat POST handler. Body:`, req.body ? JSON.stringify(req.body).substring(0, 100) + '...' : 'No body');
     const { messages } = req.body;
+    const speedModel = "gemma:2b";   // Model yang lebih cepat
+
+    let rawReplyContent = "";
+    let respondedBy = "";
+    let primaryAIError = null;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages array is required." });
     }
 
-    // Set headers for Server-Sent Events
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders(); // Flush the headers to establish the connection
-
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            throw new Error("GEMINI_API_KEY tidak ditemukan di environment variables.");
-        }
-
-        // --- Format messages for Gemini ---
-        let formattedMessages = messages.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
-        }));
-
-        const systemInstruction = "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas, ringkas, dan dalam Bahasa Indonesia yang alami. Hindari menyebutkan tanda baca secara eksplisit. Gunakan tanda baca untuk jeda dan intonasi yang tepat.";
-        formattedMessages.unshift({
-            role: 'user',
-            parts: [{ text: systemInstruction }]
-        });
-        formattedMessages.unshift({
-            role: 'model',
-            parts: [{ text: "Baik, saya akan menjawab pertanyaan Anda sebagai asisten AI yang membantu dan ramah dalam Bahasa Indonesia." }]
-        });
-        if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'model') {
-            formattedMessages.push({
-                role: 'user',
-                parts: [{ text: "Lanjutkan percakapan." }]
-            });
-        }
-        // --- End of formatting ---
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: formattedMessages,
-                generationConfig: {
-                    temperature: 0.7,
-                    topP: 0.9,
-                    topK: 40,
-                    maxOutputTokens: 2048,
-                },
-            }),
+        if (!ollama || typeof ollama.chat !== 'function') { throw new Error("Ollama service not ready."); }
+        
+        console.log(`   Memulai balapan model: Gemini-2.0-Flash vs ${speedModel}...`);
+        
+        const ollamaChatMessages = messages.map(m => ({ role: m.role, content: m.content }));
+        // Tambahkan instruksi sistem untuk Ollama
+        ollamaChatMessages.unshift({
+            role: 'system',
+            content: "Anda adalah asisten AI yang membantu dan ramah. Jawablah dengan jelas, ringkas, dan dalam Bahasa Indonesia yang alami. Hindari menyebutkan tanda baca secara eksplisit. Gunakan tanda baca untuk jeda dan intonasi yang tepat."
         });
 
-        if (!response.ok || !response.body) {
-            const errorBody = await response.json().catch(() => ({ error: { message: "Failed to parse error response" } }));
-            throw new Error(`Gemini API error: ${response.status} - ${errorBody.error?.message || JSON.stringify(errorBody)}`);
-        }
+        // Mulai kedua operasi secara bersamaan
+        const geminiPromise = callGeminiAPI(messages, GEMINI_API_KEY); // Panggil Gemini
+        const ollamaPromise = ollama.chat({ model: speedModel, messages: ollamaChatMessages, stream: false });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        // Gunakan Promise.allSettled untuk menunggu kedua promise selesai
+        const results = await Promise.allSettled([geminiPromise, ollamaPromise]);
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                console.log('   Stream selesai dari Gemini.');
-                break;
+        let geminiResult = results[0];
+        let ollamaResult = results[1];
+
+        // Prioritaskan Gemini jika berhasil
+        if (geminiResult.status === 'fulfilled' && geminiResult.value?.message?.content) {
+            rawReplyContent = geminiResult.value.message.content;
+            respondedBy = `Gemini (${geminiResult.value.model})`;
+            console.log(`   Pemenang balapan adalah Gemini (${geminiResult.value.model}):`, rawReplyContent.substring(0, 70) + "...");
+        } 
+        // Fallback ke Ollama jika Gemini gagal tapi Ollama berhasil
+        else if (ollamaResult.status === 'fulfilled' && ollamaResult.value?.message?.content) {
+            rawReplyContent = ollamaResult.value.message.content;
+            respondedBy = `Ollama (${speedModel})`;
+            console.log(`   Pemenang balapan adalah Ollama (${speedModel}):`, rawReplyContent.substring(0, 70) + "...");
+        } 
+        // Jika keduanya gagal
+        else {
+            let errorMessage = "Terjadi error pada kedua model.";
+            if (geminiResult.status === 'rejected') {
+                errorMessage += ` Gemini error: ${geminiResult.reason.message}`;
             }
-
-            buffer += decoder.decode(value, { stream: true });
-            
-            // The response is a stream of JSON objects, sometimes multiple in one chunk
-            // We need to handle this by finding the boundaries of each JSON object
-            let boundary;
-            while ((boundary = buffer.indexOf('\n')) !== -1) {
-                const chunk = buffer.substring(0, boundary).trim();
-                buffer = buffer.substring(boundary + 1);
-
-                if (chunk.startsWith('data:')) {
-                    const jsonStr = chunk.substring(5).trim();
-                    try {
-                        const parsed = JSON.parse(jsonStr);
-                        const textChunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (textChunk) {
-                            const eventData = {
-                                type: 'chunk',
-                                content: textChunk,
-                                provider: 'Gemini-Pro'
-                            };
-                            res.write(`data: ${JSON.stringify(eventData)}\n\n`);
-                        }
-                    } catch (e) {
-                        console.warn('   Gagal mem-parsing JSON dari stream chunk:', jsonStr);
-                    }
-                }
+            if (ollamaResult.status === 'rejected') {
+                errorMessage += ` Ollama error: ${ollamaResult.reason.message}`;
             }
+            throw new Error(errorMessage);
         }
 
     } catch (error) {
-        console.error(`   Error selama streaming dari Gemini: ${error.message}`);
-        const errorData = {
-            type: 'error',
-            content: `Maaf, terjadi masalah dengan AI: ${error.message}`
-        };
-        res.write(`data: ${JSON.stringify(errorData)}\n\n`);
-    } finally {
-        // Send a final event to signal the end of the stream
-        const endData = { type: 'end', provider: 'Gemini-Pro' };
-        res.write(`data: ${JSON.stringify(endData)}\n\n`);
-        res.end();
-        console.log('   Koneksi stream ditutup.');
+        console.error(`   Terjadi error saat balapan model: ${error.message}`);
+        primaryAIError = error;
     }
+
+    let textForProcessing = "";
+    if (rawReplyContent) { 
+        textForProcessing = rawReplyContent; 
+    } else if (primaryAIError) { 
+        textForProcessing = `Maaf, terjadi masalah dengan AI: ${primaryAIError.message}`; 
+        if (respondedBy === "") respondedBy = `Sistem Error (Ollama)`;
+    } else { 
+        textForProcessing = "Maaf, terjadi kesalahan internal."; 
+        if (respondedBy === "") respondedBy = "Sistem Error"; 
+    }
+
+    const finalReplyContent = await translateTextWithMyMemory(textForProcessing, 'en', 'id');
+
+    let providerInfo = respondedBy;
+    console.log(`   [${new Date().toISOString()}] Mengirim respons untuk /api/chat:`, { role: "assistant", content: finalReplyContent.substring(0,50)+'...', provider: providerInfo });
+    res.json({ reply: { role: "assistant", content: finalReplyContent, provider: providerInfo } });
 });
 
 app.get('/api/logs', (req, res) => {

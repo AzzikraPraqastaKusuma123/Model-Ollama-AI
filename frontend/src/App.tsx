@@ -102,8 +102,8 @@ type Message = {
 
 // Komponen Ikon
 const SendIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-      <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
     </svg>
 );
 
@@ -483,13 +483,7 @@ function App() {
         const trimmedInput = prompt.trim();
         if (trimmedInput && !isLoading) {
             const newMessage: Message = { role: "user", content: trimmedInput, timestamp: getCurrentTimestamp() };
-            const assistantMessagePlaceholder: Message = { 
-                role: "assistant", 
-                content: "", // Start with empty content
-                timestamp: getCurrentTimestamp(), 
-                provider: "..." 
-            };
-            setMessages((prevMessages) => [...prevMessages, newMessage, assistantMessagePlaceholder]);
+            setMessages((prevMessages) => [...prevMessages, newMessage]);
             setInput("");
             if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
             
@@ -501,71 +495,26 @@ function App() {
 
             try {
                 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://192.168.100.55:3333/api/chat";
-                const response = await fetch(backendUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: finalMessagesForApi }),
-                });
-
-                if (!response.ok || !response.body) {
-                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                const response = await fetch(backendUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: finalMessagesForApi }), });
+                
+                if (!response.ok) {
+                    let errData = { error: `HTTP error! status: ${response.status} ${response.statusText}` };
+                    try { const errorBody = await response.json(); errData.error = errorBody.error || (errorBody.reply?.content) || errData.error; } catch (parseError) { /* ignore */ }
+                    throw new Error(errData.error);
                 }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = "";
-                let sentenceBuffer = "";
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                        if (sentenceBuffer.trim()) {
-                            playSound(sentenceBuffer.trim());
-                        }
-                        break;
-                    }
-
-                    buffer += decoder.decode(value, { stream: true });
-                    
-                    let boundary;
-                    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
-                        const eventString = buffer.substring(0, boundary);
-                        buffer = buffer.substring(boundary + 2);
-
-                        if (eventString.startsWith('data:')) {
-                            const jsonStr = eventString.substring(5).trim();
-                            try {
-                                const data = JSON.parse(jsonStr);
-                                if (data.type === 'chunk') {
-                                    setMessages(prev => prev.map((msg, index) => {
-                                        if (index === prev.length - 1) {
-                                            sentenceBuffer += data.content;
-                                            if (/[.!?]/.test(sentenceBuffer)) {
-                                                const sentences = sentenceBuffer.match(/[^.!?]+[.!?]*/g) || [];
-                                                if (sentences.length > 1) {
-                                                    const completeSentences = sentences.slice(0, -1).join(' ').trim();
-                                                    if(completeSentences) playSound(completeSentences);
-                                                    sentenceBuffer = sentences.slice(-1)[0];
-                                                }
-                                            }
-                                            return { ...msg, content: msg.content + data.content, provider: data.provider };
-                                        }
-                                        return msg;
-                                    }));
-                                } else if (data.type === 'end') {
-                                    // This is now handled in the 'done' block of the reader
-                                } else if (data.type === 'error') {
-                                    setError(data.content);
-                                }
-                            } catch (e) {
-                                console.error("Failed to parse stream JSON:", e);
-                            }
-                        }
-                    }
-                }
+                const data = await response.json();
+                if (data.reply && data.reply.content) {
+                    const newAssistantMessage: Message = { role: "assistant", content: data.reply.content, timestamp: getCurrentTimestamp(), provider: data.reply.provider };
+                    setMessages((prevMessages) => [...prevMessages, newAssistantMessage]);
+                    playSound(newAssistantMessage.content);
+                } else { throw new Error("Struktur respons dari server tidak valid."); }
             } catch (err: any) {
-                console.error("Fetch stream failed:", err);
-                setError(`Koneksi ke server gagal: ${err.message}`);
+                const errorMessageText = err.message || "Gagal mendapatkan respons dari server.";
+                console.error("Submit Error:", err);
+                setError(errorMessageText);
+                const assistantErrorMessage: Message = { role: "assistant", content: `Error: ${errorMessageText}`, timestamp: getCurrentTimestamp(), provider: "Sistem Error" };
+                setMessages((prevMessages) => [...prevMessages, assistantErrorMessage]);
+                playSound(`Terjadi kesalahan: ${errorMessageText}`);
             } finally {
                 setIsLoading(false);
             }
@@ -745,76 +694,55 @@ function App() {
 
     return (
         <div className={styles.appContainer}>
-            {/* Log Viewer (Sidebar) */}
-            <div className={styles.logViewerContainer}>
-                <div className={styles.logViewerHeader}>
-                    <h2>Backend Log</h2>
-                </div>
-                <div className={styles.logViewerContent}>
-                    {backendLogs.length === 0 ? (
-                        <p>No logs available.</p>
-                    ) : (
-                        backendLogs.map((log, index) => (
-                            <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
-                                <span className={styles.logTimestamp}>{log.timestamp}</span>
-                                <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
-                                <span className={styles.logMessage}>{log.message}</span>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
+            <audio ref={audioPlayerRef} style={{ display: 'none' }} crossOrigin="anonymous" />
+            <header className={styles.appHeader}>
+                <h1>Asisten AI Cerdas</h1>
+            </header>
 
-            {/* Main Chat Panel */}
-            <div className={styles.chatPanel}>
-                <header className={styles.appHeader}>
-                    <h1>Nova AI Assistant</h1>
-                </header>
-
-                <main className={styles.mainContent}>
-                    {(isListening || isSpeakingTTSBrowser) && (
-                        <div className={styles.unifiedWaveformDisplayContainer}>
-                            <VoiceWaveform 
-                                analyserNode={sttAnalyserNodeRef.current} 
-                                isListening={isListening} 
-                                isSpeaking={isSpeakingTTSBrowser}
-                                width={240}     
-                                height={100}     
-                            />
-                            <p className={styles.waveformStatusText}>
-                                {isNovaResponding ? "Nova is active: Listening..." : (isListening ? "Say 'Nova' to start..." : "Speaking...")}
-                            </p>
-                        </div>
-                    )}
-                    <div ref={messagesContainerRef} className={styles.messagesListContainer}>
-                        {messages.map((message, index) => (
-                            <MessageCard
-                                key={index} 
-                                role={message.role} 
-                                message={message.content}
-                                timestamp={message.timestamp}
-                                onPlaySound={playSound}
-                                audioData={message.audioData}
-                                provider={message.provider}
-                            />
-                        ))}
-                        {isLoading && (
-                            <div className={styles.loadingIndicatorContainer}>
-                                <div className={styles.loadingIndicatorBubble}>
-                                    <div className={styles.loadingDots}>
-                                        <span className="sr-only">Typing...</span>
-                                        <div></div> <div></div> <div></div>
-                                    </div>
+            <main className={styles.mainContent}>
+                {(isListening || isSpeakingTTSBrowser) && (
+                    <div className={styles.unifiedWaveformDisplayContainer}>
+                        <VoiceWaveform 
+                            analyserNode={sttAnalyserNodeRef.current} 
+                            isListening={isListening} 
+                            isSpeaking={isSpeakingTTSBrowser}
+                            width={240}     
+                            height={120}     
+                        />
+                        <p className={styles.waveformStatusText}>
+                            {isNovaResponding ? "Nova Aktif: Mendengarkan..." : "Nova Tidak Aktif: Ucapkan 'Nova'..."}
+                        </p>
+                    </div>
+                )}
+                <div ref={messagesContainerRef} className={styles.messagesListContainer}>
+                    {messages.map((message, index) => (
+                        <MessageCard
+                            key={index} 
+                            role={message.role} 
+                            message={message.content}
+                            timestamp={message.timestamp}
+                            onPlaySound={playSound}
+                            audioData={message.audioData}
+                            provider={message.provider}
+                        />
+                    ))}
+                    {isLoading && (
+                        <div className={styles.loadingIndicatorContainer}>
+                            <div className={styles.loadingIndicatorBubble}>
+                                <div className={styles.loadingDots}>
+                                    <span className="sr-only">Mengetik...</span>
+                                    <div></div> <div></div> <div></div>
                                 </div>
                             </div>
-                        )}
-                    </div>
-                    {error && !isLoading && (
-                        <div className={styles.errorMessageContainer}>
-                            <strong>Error:</strong> {error}
                         </div>
                     )}
-                </main>
+                </div>
+
+                {error && !isLoading && (
+                       <div className={styles.errorMessageContainer}>
+                           <strong>Error:</strong> {error}
+                       </div>
+                )}
 
                 <form 
                     onSubmit={handleFormSubmit} 
@@ -823,7 +751,7 @@ function App() {
                     <div className={styles.inputFormInnerWrapper}>
                         <textarea
                             ref={textareaRef} 
-                            placeholder={isNovaResponding ? "Listening..." : "Say 'Nova' or type here..."}
+                            placeholder={isNovaResponding ? "Mendengarkan..." : "Ucapkan 'Nova' atau ketik di sini..."}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !isLoading) { handleFormSubmit(e); } }}
@@ -835,13 +763,40 @@ function App() {
                             type="submit" 
                             disabled={!input.trim() || isLoading || anyTTSSpeaking}
                             className={styles.sendButton} 
-                            aria-label="Send message"
+                            aria-label="Kirim pesan"
                         >
                             <SendIcon />
                         </button>
                     </div>
                 </form>
-            </div>
+            </main>
+            <div className={styles.logViewerContainer}>
+                        <div className={styles.logViewerHeader}>
+                            <h2>Log Backend</h2>
+                            <button 
+                                className={`${styles.iconButton} ${styles.closeLogButton}`}
+                                onClick={() => {}}
+                                aria-label="Tutup Log Backend"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className={styles.logViewerContent}>
+                            {backendLogs.length === 0 ? (
+                                <p>Tidak ada log yang tersedia.</p>
+                            ) : (
+                                backendLogs.map((log, index) => (
+                                    <div key={index} className={`${styles.logEntry} ${styles[log.level]}`}>
+                                        <span className={styles.logTimestamp}>{log.timestamp}</span>
+                                        <span className={styles.logLevel}>[{log.level.toUpperCase()}]</span>
+                                        <span className={styles.logMessage}>{log.message}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                </div>
         </div>
     );
 }
