@@ -1,10 +1,6 @@
 # Nova AI Assistant 
 
 Sebuah asisten obrolan AI yang mengutamakan suara, menampilkan arsitektur AI "dual-brain" yang unik yang memanfaatkan kekuatan model lokal **Ollama** dan **Google Gemini** berbasis cloud.
-
-![Nova UI Screenshot](https://i.imgur.com/YOUR_SCREENSHOT_URL.png)
-*(Disarankan: Ganti URL di atas dengan tangkapan layar antarmuka Anda yang menampilkan visualisator gelombang suara.)*
-
 ---
 
 ## ✨ Fitur Utama
